@@ -8,6 +8,9 @@ import LandingPage from './components/LandingPage';
 import AdminDashboard from './components/AdminDashboard';
 import MasterDashboard from './components/MasterDashboard';
 import LoginPortal from './components/LoginPortal';
+import PublicJobPage from './components/PublicJobPage';
+import CandidateInterviewRoom from './components/interview/CandidateInterviewRoom';
+import { generateJobSlug } from './components/publicJobUtils';
 import { firebaseService } from './firebase';
 import { UserAccount } from './types_master';
 import { 
@@ -47,7 +50,8 @@ import {
 export default function App() {
   // Navigation / View Controller ('portal' | 'login' | 'admin')
   const [view, setView] = useState<'portal' | 'login' | 'admin'>('portal');
-  
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname + window.location.search);
+
   // Auth state
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
     return firebaseService.auth.getCurrentUser();
@@ -86,6 +90,36 @@ export default function App() {
     }
     return INITIAL_JOBS;
   });
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setCurrentPath(window.location.pathname + window.location.search);
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
+  const getJobFromUrl = (): Job | null => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const vagaParam = searchParams.get('vaga');
+    
+    let targetSlugOrId = vagaParam;
+    if (!targetSlugOrId && window.location.pathname.includes('/vaga/')) {
+      targetSlugOrId = decodeURIComponent(window.location.pathname.split('/vaga/')[1]?.trim() || '');
+    }
+
+    if (!targetSlugOrId) return null;
+
+    const allJobsList = jobs.length > 0 ? jobs : INITIAL_JOBS;
+    return allJobsList.find(j => 
+      j.slug === targetSlugOrId || 
+      j.id === targetSlugOrId || 
+      generateJobSlug(j.title, j.id) === targetSlugOrId
+    ) || null;
+  };
+
+  const activePublicJob = getJobFromUrl();
+  const isVagasCatalogRoute = currentPath.includes('/vagas');
 
   // Sync jobs if updated elsewhere in localStorage
   useEffect(() => {
@@ -348,7 +382,6 @@ export default function App() {
     } else {
       // Clean local state on logout to prevent cross-contamination
       setEmployees([]);
-      setJobs([]);
       setCandidates([]);
       setTimeRegisters([]);
       setVacationRequests([]);
@@ -364,6 +397,40 @@ export default function App() {
       setInssBrackets([]);
       setIrrfBrackets([]);
       setView('portal');
+
+      // Load published jobs for public Portal/LandingPage
+      const loadPublicJobs = async () => {
+        try {
+          const fsJobs = await firebaseService.db.getCollection<Job>('JOBS', 'company-1');
+          const savedLocal = localStorage.getItem('firebase_jobs') || localStorage.getItem('JOBS');
+          let localJobs: Job[] = savedLocal ? JSON.parse(savedLocal) : [];
+
+          const jobMap = new Map<string, Job>();
+          // Put initial jobs first as base
+          INITIAL_JOBS.forEach(j => jobMap.set(j.id, j));
+          localJobs.forEach(j => jobMap.set(j.id, j));
+          fsJobs.forEach(j => jobMap.set(j.id, j));
+
+          const allJobs = Array.from(jobMap.values());
+          if (allJobs.length > 0) {
+            setJobs(allJobs);
+            localStorage.setItem('firebase_jobs', JSON.stringify(allJobs));
+            localStorage.setItem('JOBS', JSON.stringify(allJobs));
+          } else {
+            setJobs(INITIAL_JOBS);
+          }
+        } catch (e) {
+          console.error('Error loading public jobs:', e);
+          const savedLocal = localStorage.getItem('firebase_jobs') || localStorage.getItem('JOBS');
+          if (savedLocal) {
+            setJobs(JSON.parse(savedLocal));
+          } else {
+            setJobs(INITIAL_JOBS);
+          }
+        }
+      };
+
+      loadPublicJobs();
     }
   }, [currentUser]);
 
@@ -378,10 +445,6 @@ export default function App() {
     setEmployees(updatedEmployees);
     if (currentUser) {
       const companyId = currentUser.companyId || 'company-1';
-      // Find what changed/added and update in localstorage db simulation
-      // For simplicity, we can rewrite the collection state, or write them individually.
-      // Since our virtual saveDoc replaces/appends to storage, we can trigger individually or bulk-write.
-      // Bulk writing is clean because it aligns the full state.
       localStorage.setItem(`firebase_employees`, JSON.stringify(
         updatedEmployees.map(e => ({ ...e, companyId }))
       ));
@@ -396,6 +459,9 @@ export default function App() {
       localStorage.setItem('firebase_jobs', JSON.stringify(dataToSave));
       localStorage.setItem('JOBS', JSON.stringify(dataToSave));
       window.dispatchEvent(new Event('jobsUpdated'));
+
+      // Persist to Firestore as well
+      await Promise.all(dataToSave.map(j => firebaseService.db.saveDoc('JOBS', j, companyId)));
     } catch (e) {
       console.error('Error saving jobs:', e);
     }
@@ -548,14 +614,52 @@ export default function App() {
     };
     
     // Default to company-1 since candidate applying on public landing
-    const companyId = 'company-1';
-    await firebaseService.db.saveDoc('CANDIDATES', fullCand, companyId);
-    
-    // If we're logged into company-1, append to live react state
-    if (currentUser?.companyId === 'company-1') {
-      setCandidates(prev => [...prev, fullCand]);
+    const companyId = currentUser?.companyId || 'company-1';
+    try {
+      await firebaseService.db.saveDoc('CANDIDATES', fullCand, companyId);
+    } catch (e) {
+      console.error('Error saving candidate to db:', e);
     }
+    
+    // Always append to live React state and persist to storage
+    setCandidates(prev => {
+      const updated = [fullCand, ...prev];
+      try {
+        localStorage.setItem('firebase_candidates', JSON.stringify(updated.map(c => ({ ...c, companyId }))));
+        localStorage.setItem('CANDIDATES', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Error persisting candidates:', e);
+      }
+      return updated;
+    });
   };
+
+  const isInterviewRoomRoute = () => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const hasRoomParam = searchParams.has('room') || searchParams.has('interview') || searchParams.has('sala');
+    const isPathRoom = currentPath.includes('/room/') || currentPath.includes('/interview/');
+    return hasRoomParam || isPathRoom;
+  };
+
+  if (isInterviewRoomRoute()) {
+    return <CandidateInterviewRoom />;
+  }
+
+  if (activePublicJob) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <PublicJobPage 
+          job={activePublicJob}
+          onBack={() => {
+            window.history.pushState({}, '', '/vagas');
+            setCurrentPath('/vagas');
+            setView('portal');
+          }}
+          onCandidateSubmit={handleAddCandidate}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -564,6 +668,12 @@ export default function App() {
           jobs={jobs.length > 0 ? jobs : INITIAL_JOBS}
           onNavigateToDashboard={() => setView('login')}
           onAddCandidate={handleAddCandidate}
+          initialPage={isVagasCatalogRoute ? 'vagas' : 'home'}
+          onSelectJob={(selectedJob) => {
+            const slug = selectedJob.slug || generateJobSlug(selectedJob.title, selectedJob.id);
+            window.history.pushState({}, '', `/vaga/${slug}`);
+            setCurrentPath(`/vaga/${slug}`);
+          }}
         />
       )}
 

@@ -57,3 +57,64 @@ export interface UserAccount {
   status: 'Ativo' | 'Bloqueado';
   password?: string;
 }
+
+// Configurações do Site Principal (Master Admin)
+export interface SiteHomeConfig {
+  titulo: string;
+  subtitulo: string;
+  descricao: string;
+  botaoTexto: string;
+  botaoLink: string;
+  imagem: string;
+}
+
+export interface SiteEmpresaConfig {
+  missao: string;
+  visao: string;
+  valores: string[];
+}
+
+export interface SitePlanoConfig {
+  id: string;
+  nome: string;
+  descricao: string;
+  valorMensal: string;
+  valorAnual: string;
+  beneficios: string[];
+  botaoTexto?: string;
+  botaoLink?: string;
+  ativo: boolean;
+  ordem: number;
+  destaque?: boolean;
+  badge?: string;
+}
+
+export interface SiteMidiaConfig {
+  logo: string;
+  favicon: string;
+  bannerInicial: string;
+  imagensInstitucionais: string[];
+}
+
+export interface SiteContatoConfig {
+  telefone: string;
+  whatsapp: string;
+  email: string;
+  endereco: string;
+  redesSociais: {
+    linkedin?: string;
+    instagram?: string;
+    facebook?: string;
+    youtube?: string;
+    twitter?: string;
+  };
+}
+
+export interface SiteConfig {
+  home: SiteHomeConfig;
+  empresa: SiteEmpresaConfig;
+  planos: SitePlanoConfig[];
+  midia: SiteMidiaConfig;
+  contato: SiteContatoConfig;
+}
+

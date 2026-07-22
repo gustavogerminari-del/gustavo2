@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Briefcase, 
   Search, 
@@ -29,21 +29,39 @@ import {
   Heart
 } from 'lucide-react';
 import { Job, Candidate } from '../types';
+import { SiteConfig } from '../types_master';
+import { firebaseService, DEFAULT_SITE_CONFIG } from '../firebase';
+import { isJobPublished, DEFAULT_COMPANY_LOGOS, generateJobSlug } from './publicJobUtils';
 
 interface LandingPageProps {
   jobs: Job[];
   onNavigateToDashboard: () => void;
   onAddCandidate: (candidate: Omit<Candidate, 'id' | 'createdAt'>) => void;
+  onSelectJob?: (job: Job) => void;
+  initialPage?: 'home' | 'vagas';
 }
 
-export default function LandingPage({ jobs, onNavigateToDashboard, onAddCandidate }: LandingPageProps) {
+export default function LandingPage({ jobs, onNavigateToDashboard, onAddCandidate, onSelectJob, initialPage = 'home' }: LandingPageProps) {
+  // Site dynamic config from Firebase
+  const [siteConfig, setSiteConfig] = useState<SiteConfig>(DEFAULT_SITE_CONFIG);
+
+  useEffect(() => {
+    firebaseService.db.getSiteConfig()
+      .then(cfg => {
+        if (cfg) setSiteConfig(cfg);
+      })
+      .catch(err => {
+        console.warn('Failed to load site config in LandingPage:', err);
+      });
+  }, []);
+
   // Search parameters
   const [keyword, setKeyword] = useState('');
   const [location, setLocation] = useState('');
   const [searchTriggered, setSearchTriggered] = useState(false);
 
   // Page state ('home' | 'vagas')
-  const [activePage, setActivePage] = useState<'home' | 'vagas'>('home');
+  const [activePage, setActivePage] = useState<'home' | 'vagas'>(initialPage);
 
   // Modals state
   const [isCvModalOpen, setIsCvModalOpen] = useState(false);
@@ -94,26 +112,28 @@ export default function LandingPage({ jobs, onNavigateToDashboard, onAddCandidat
     }, 4500);
   };
 
-  // Filtered jobs for section
+  // All published jobs (Status === "Publicada")
+  const allActiveJobs = useMemo(() => {
+    return jobs.filter(isJobPublished);
+  }, [jobs]);
+
+  // Filtered jobs for home/search section
   const filteredJobs = useMemo(() => {
-    return jobs.filter(job => {
+    return allActiveJobs.filter(job => {
       const matchKeyword = keyword === '' || 
         job.title.toLowerCase().includes(keyword.toLowerCase()) ||
         job.department.toLowerCase().includes(keyword.toLowerCase()) ||
         job.description.toLowerCase().includes(keyword.toLowerCase()) ||
+        (job.companyName && job.companyName.toLowerCase().includes(keyword.toLowerCase())) ||
         job.requirements.some(r => r.toLowerCase().includes(keyword.toLowerCase()));
       
       const matchLocation = location === '' || 
-        job.location.toLowerCase().includes(location.toLowerCase());
+        job.location.toLowerCase().includes(location.toLowerCase()) ||
+        (job.city && job.city.toLowerCase().includes(location.toLowerCase()));
 
-      return matchKeyword && matchLocation && job.active !== false;
+      return matchKeyword && matchLocation;
     });
-  }, [jobs, keyword, location]);
-
-  // All active jobs for modal
-  const allActiveJobs = useMemo(() => {
-    return jobs.filter(j => j.active !== false);
-  }, [jobs]);
+  }, [allActiveJobs, keyword, location]);
 
   const modalFilteredJobs = useMemo(() => {
     return allActiveJobs.filter(job => {
@@ -552,26 +572,33 @@ export default function LandingPage({ jobs, onNavigateToDashboard, onAddCandidat
           <div className="pt-8 pb-12 max-w-4xl">
             <div className="inline-flex items-center space-x-2 bg-amber-500/10 border border-amber-500/30 rounded-full px-4 py-1.5 mb-6">
               <span className="text-amber-400 text-xs font-mono font-semibold uppercase tracking-wider">
-                Plataforma de Recrutamento e Gestão de Pessoas
+                {siteConfig.home.subtitulo || 'Plataforma de Recrutamento e Gestão de Pessoas'}
               </span>
             </div>
 
             <h2 className="font-display font-bold text-4xl sm:text-5xl md:text-6xl text-white tracking-tight leading-[1.1] mb-6">
-              Conectando talentos às <br />
-              <span className="text-amber-500">melhores oportunidades</span>
+              {siteConfig.home.titulo || 'Conectando talentos às melhores oportunidades'}
             </h2>
 
             <p className="text-gray-300 text-base sm:text-lg md:text-xl font-light leading-relaxed max-w-2xl mb-8">
-              A plataforma digital completa de RH onde candidatos, empresas e gestão de pessoas se encontram em um só lugar.
+              {siteConfig.home.descricao || 'A plataforma digital completa de RH onde candidatos, empresas e gestão de pessoas se encontram em um só lugar.'}
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4">
               <button
                 id="btn-cadastrar-cv-hero"
-                onClick={() => setIsCvModalOpen(true)}
+                onClick={() => {
+                  if (siteConfig.home.botaoLink && siteConfig.home.botaoLink.startsWith('#')) {
+                    const el = document.querySelector(siteConfig.home.botaoLink);
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    else setIsCvModalOpen(true);
+                  } else {
+                    setIsCvModalOpen(true);
+                  }
+                }}
                 className="inline-flex items-center justify-center space-x-2 bg-amber-500 hover:bg-amber-400 text-[#0b1d33] font-semibold px-6 py-3.5 rounded-xl shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30 transition-all transform hover:-translate-y-0.5 group"
               >
-                <span>Cadastrar Currículo</span>
+                <span>{siteConfig.home.botaoTexto || 'Cadastrar Currículo'}</span>
                 <ArrowRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
               </button>
 
@@ -805,49 +832,79 @@ export default function LandingPage({ jobs, onNavigateToDashboard, onAddCandidat
               {filteredJobs.map((job) => (
                 <div 
                   key={job.id} 
-                  className="bg-slate-50 rounded-2xl p-6 border border-slate-100 hover:border-slate-200 hover:shadow-xl transition-all duration-300 flex flex-col justify-between h-full"
+                  className="bg-white rounded-2xl p-6 border border-slate-200/80 hover:border-amber-500/40 hover:shadow-xl transition-all duration-300 flex flex-col justify-between h-full group"
                 >
                   <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="bg-[#0b1d33]/5 text-[#0b1d33] font-semibold text-xs px-3 py-1.5 rounded-full">
-                        {job.department}
-                      </span>
-                      <span className="text-slate-400 text-xs">
-                        {job.createdAt}
+                    {/* Header: Company Logo + Company Name + Date */}
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                      <div className="flex items-center space-x-3">
+                        {job.companyLogo ? (
+                          <img 
+                            src={job.companyLogo} 
+                            alt={job.companyName || 'Empresa'} 
+                            className="h-10 w-10 rounded-xl object-contain bg-slate-50 border border-slate-100 p-1 shrink-0" 
+                          />
+                        ) : (
+                          <div className="h-10 w-10 rounded-xl bg-amber-50 border border-amber-200/50 flex items-center justify-center text-amber-700 font-bold text-sm shrink-0">
+                            {(job.companyName || job.title)[0]?.toUpperCase() || 'E'}
+                          </div>
+                        )}
+                        <div>
+                          <h5 className="font-bold text-xs text-slate-800 line-clamp-1">
+                            {job.companyName || 'Empresa Confidencial'}
+                          </h5>
+                          <span className="text-[10px] text-amber-700 font-semibold bg-amber-50 px-2 py-0.5 rounded-md inline-block">
+                            {job.department}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span className="text-slate-400 text-[11px] font-mono shrink-0">
+                        {job.publishedAt || job.createdAt}
                       </span>
                     </div>
 
-                    <h4 className="font-display font-bold text-xl text-slate-950 mb-2 leading-tight">
+                    {/* Title */}
+                    <h4 className="font-display font-bold text-lg text-slate-950 mb-2 leading-tight group-hover:text-amber-600 transition-colors">
                       {job.title}
                     </h4>
 
-                    <div className="flex flex-wrap gap-y-2 gap-x-4 text-xs text-slate-500 mb-4">
-                      <span className="flex items-center space-x-1">
+                    {/* Details tags: City, Contract type, Work model */}
+                    <div className="flex flex-wrap gap-1.5 text-xs text-slate-500 mb-4">
+                      <span className="flex items-center space-x-1 bg-slate-100 text-slate-700 font-medium px-2.5 py-1 rounded-lg text-[11px]">
                         <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                        <span>{job.location}</span>
+                        <span>{job.city || job.location}</span>
                       </span>
-                      <span className="bg-amber-500/15 text-amber-800 font-medium px-2 py-0.5 rounded text-[11px]">
+                      <span className="bg-amber-500/15 text-amber-900 font-semibold px-2.5 py-1 rounded-lg text-[11px]">
+                        {job.type || 'CLT'}
+                      </span>
+                      <span className="bg-slate-100 text-slate-700 font-medium px-2.5 py-1 rounded-lg text-[11px]">
                         {job.workModel}
-                      </span>
-                      <span className="bg-slate-200 text-slate-800 font-medium px-2 py-0.5 rounded text-[11px]">
-                        {job.type}
                       </span>
                     </div>
 
-                    <p className="text-slate-600 text-xs leading-relaxed line-clamp-3 mb-6">
+                    <p className="text-slate-600 text-xs leading-relaxed line-clamp-2 mb-4 font-sans">
                       {job.description}
                     </p>
                   </div>
 
-                  <div className="flex items-center justify-between pt-4 border-t border-slate-200/50">
-                    <span className="text-slate-900 font-semibold text-sm font-mono">
-                      {job.salaryRange}
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                    <span className="text-slate-900 font-bold text-xs font-mono">
+                      {job.salaryRange || 'A combinar'}
                     </span>
                     <button
-                      onClick={() => { setSelectedJob(job); setApplyJobFormOpen(false); }}
-                      className="bg-[#0b1d33] hover:bg-amber-500 hover:text-[#0b1d33] text-white font-medium text-xs px-4 py-2.5 rounded-xl transition-all"
+                      onClick={() => {
+                        const slug = job.slug || generateJobSlug(job.title, job.id);
+                        if (onSelectJob) {
+                          onSelectJob(job);
+                        } else {
+                          window.location.href = `/vaga/${slug}`;
+                        }
+                      }}
+                      className="bg-[#0b1d33] hover:bg-amber-500 hover:text-[#0b1d33] text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer flex items-center space-x-1.5"
                     >
-                      Ver Detalhes
+                      <span>Ver vaga</span>
+                      <ChevronRight className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>
@@ -870,107 +927,48 @@ export default function LandingPage({ jobs, onNavigateToDashboard, onAddCandidat
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
-            {/* Plan 1 - Básico */}
-            <div className="bg-white rounded-2xl p-8 border border-slate-200 flex flex-col justify-between hover:shadow-lg transition-all">
-              <div>
-                <h4 className="font-display font-bold text-2xl text-slate-900 mb-1">Básico</h4>
-                <p className="text-amber-600 text-sm font-semibold mb-6">Sob consulta</p>
-
-                <ul className="space-y-4 mb-8">
-                  <li className="flex items-start space-x-3 text-slate-600 text-sm">
-                    <Check className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                    <span>Publicação de vagas</span>
-                  </li>
-                  <li className="flex items-start space-x-3 text-slate-600 text-sm">
-                    <Check className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                    <span>Triagem de candidatos</span>
-                  </li>
-                  <li className="flex items-start space-x-3 text-slate-600 text-sm">
-                    <Check className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                    <span>Painel da empresa</span>
-                  </li>
-                </ul>
-              </div>
-
-              <button 
-                onClick={() => { setSelectedPlan('Básico'); setIsContactModalOpen(true); }}
-                className="w-full bg-[#0b1d33] hover:bg-slate-800 text-white font-medium text-sm py-3.5 rounded-xl transition-colors text-center"
+            {(siteConfig.planos || []).filter(p => p.ativo).map((plan) => (
+              <div 
+                key={plan.id}
+                className={`bg-white rounded-2xl p-8 flex flex-col justify-between transition-all relative ${
+                  plan.destaque 
+                    ? 'border-2 border-amber-500 shadow-xl scale-105' 
+                    : 'border border-slate-200 hover:shadow-lg'
+                }`}
               >
-                Falar com Consultor
-              </button>
-            </div>
+                {plan.badge && (
+                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-amber-500 text-[#0b1d33] font-mono text-[10px] font-bold px-4 py-1.5 rounded-full tracking-widest uppercase shadow-sm">
+                    {plan.badge}
+                  </div>
+                )}
 
-            {/* Plan 2 - Profissional (Popular) */}
-            <div className="bg-white rounded-2xl p-8 border-2 border-amber-500 relative flex flex-col justify-between shadow-xl hover:shadow-2xl transition-all scale-105">
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-amber-500 text-[#0b1d33] font-mono text-[10px] font-bold px-4 py-1.5 rounded-full tracking-widest uppercase">
-                MAIS POPULAR
+                <div className={plan.badge ? 'pt-2' : ''}>
+                  <h4 className="font-display font-bold text-2xl text-slate-900 mb-1">{plan.nome}</h4>
+                  <p className="text-amber-600 text-sm font-semibold mb-2">{plan.valorMensal}</p>
+                  <p className="text-slate-500 text-xs mb-6 leading-relaxed">{plan.descricao}</p>
+
+                  <ul className="space-y-3 mb-8">
+                    {plan.beneficios.map((ben, bIdx) => (
+                      <li key={bIdx} className="flex items-start space-x-3 text-slate-600 text-sm">
+                        <Check className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                        <span>{ben}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <button 
+                  onClick={() => { setSelectedPlan(plan.nome); setIsContactModalOpen(true); }}
+                  className={`w-full font-semibold text-sm py-3.5 rounded-xl transition-all text-center cursor-pointer ${
+                    plan.destaque
+                      ? 'bg-amber-500 hover:bg-amber-400 text-[#0b1d33] shadow-lg shadow-amber-500/10'
+                      : 'bg-[#0b1d33] hover:bg-slate-800 text-white'
+                  }`}
+                >
+                  {plan.botaoTexto || 'Falar com Consultor'}
+                </button>
               </div>
-
-              <div className="pt-2">
-                <h4 className="font-display font-bold text-2xl text-slate-900 mb-1">Profissional</h4>
-                <p className="text-amber-600 text-sm font-semibold mb-6">Sob consulta</p>
-
-                <ul className="space-y-4 mb-8">
-                  <li className="flex items-start space-x-3 text-slate-600 text-sm">
-                    <Check className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                    <span>Tudo do Básico</span>
-                  </li>
-                  <li className="flex items-start space-x-3 text-slate-600 text-sm">
-                    <Check className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                    <span>Acesso ao Banco de Talentos</span>
-                  </li>
-                  <li className="flex items-start space-x-3 text-slate-600 text-sm">
-                    <Check className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                    <span>Filtros avançados de candidatos</span>
-                  </li>
-                  <li className="flex items-start space-x-3 text-slate-600 text-sm">
-                    <Check className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                    <span>Salvar favoritos</span>
-                  </li>
-                </ul>
-              </div>
-
-              <button 
-                onClick={() => { setSelectedPlan('Profissional'); setIsContactModalOpen(true); }}
-                className="w-full bg-amber-500 hover:bg-amber-400 text-[#0b1d33] font-semibold text-sm py-3.5 rounded-xl transition-colors text-center shadow-lg shadow-amber-500/10"
-              >
-                Falar com Consultor
-              </button>
-            </div>
-
-            {/* Plan 3 - Premium */}
-            <div className="bg-white rounded-2xl p-8 border border-slate-200 flex flex-col justify-between hover:shadow-lg transition-all">
-              <div>
-                <h4 className="font-display font-bold text-2xl text-slate-900 mb-1">Premium</h4>
-                <p className="text-amber-600 text-sm font-semibold mb-6">Sob consulta</p>
-
-                <ul className="space-y-4 mb-8">
-                  <li className="flex items-start space-x-3 text-slate-600 text-sm">
-                    <Check className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                    <span>Tudo do Profissional</span>
-                  </li>
-                  <li className="flex items-start space-x-3 text-slate-600 text-sm">
-                    <Check className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                    <span>Banco de Talentos completo</span>
-                  </li>
-                  <li className="flex items-start space-x-3 text-slate-600 text-sm">
-                    <Check className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                    <span>Recrutamento pela Rafaela Lourenço RH</span>
-                  </li>
-                  <li className="flex items-start space-x-3 text-slate-600 text-sm">
-                    <Check className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                    <span>Serviços de RH e DP</span>
-                  </li>
-                </ul>
-              </div>
-
-              <button 
-                onClick={() => { setSelectedPlan('Premium'); setIsContactModalOpen(true); }}
-                className="w-full bg-[#0b1d33] hover:bg-slate-800 text-white font-medium text-sm py-3.5 rounded-xl transition-colors text-center"
-              >
-                Falar com Consultor
-              </button>
-            </div>
+            ))}
           </div>
         </div>
       </section>
@@ -1048,9 +1046,10 @@ export default function LandingPage({ jobs, onNavigateToDashboard, onAddCandidat
             <div>
               <h6 className="font-display font-semibold text-white text-xs uppercase tracking-wider mb-4">Contato & Suporte</h6>
               <ul className="space-y-2 text-xs text-slate-400">
-                <li>Fones: (11) 3456-7890 / (11) 98765-4321</li>
-                <li>Email: contato@rafaelalourenco.com.br</li>
-                <li>Endereço: Av. Paulista, 1000, Bela Vista, São Paulo/SP</li>
+                {siteConfig.contato.telefone && <li>Fone: {siteConfig.contato.telefone}</li>}
+                {siteConfig.contato.whatsapp && <li>WhatsApp: {siteConfig.contato.whatsapp}</li>}
+                {siteConfig.contato.email && <li>Email: {siteConfig.contato.email}</li>}
+                {siteConfig.contato.endereco && <li>Endereço: {siteConfig.contato.endereco}</li>}
                 <li className="pt-2">
                   <button 
                     onClick={onNavigateToDashboard}

@@ -60,9 +60,20 @@ export default function InterviewRoomView({
   // Analysis Loading state
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  // Camera error message
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
   // Video element ref
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+
+  // Helper to attach stream to video element
+  const attachStreamToVideo = (stream: MediaStream | null) => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(err => console.warn("Auto-play blocked or error:", err));
+    }
+  };
 
   // Timer logic
   useEffect(() => {
@@ -77,24 +88,35 @@ export default function InterviewRoomView({
     return () => clearInterval(interval);
   }, [isRunning, isPaused]);
 
-  // Handle webcam stream when video is active
+  // Request camera stream function
+  const startCameraStream = async () => {
+    setCameraError(null);
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Seu navegador não suporta acesso direto à câmera nesta janela.");
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" }, 
+        audio: true 
+      });
+      mediaStreamRef.current = stream;
+      setHasCameraAccess(true);
+      attachStreamToVideo(stream);
+    } catch (err: any) {
+      console.warn("Camera access warning:", err);
+      setHasCameraAccess(false);
+      setCameraError("Acesso à câmera não permitido ou bloqueado pelo navegador. Verifique as permissões do seu navegador.");
+    }
+  };
+
+  // Handle webcam stream lifecycle
   useEffect(() => {
-    if (isVideoRecording && isRunning) {
-      navigator.mediaDevices?.getUserMedia?.({ video: true, audio: true })
-        .then((stream) => {
-          mediaStreamRef.current = stream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-          }
-          setHasCameraAccess(true);
-        })
-        .catch((err) => {
-          console.warn("Camera access not available in container/iframe, showing high-fidelity avatar simulator.", err);
-          setHasCameraAccess(false);
-        });
+    if (isVideoRecording) {
+      startCameraStream();
     } else {
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach(track => track.stop());
+        mediaStreamRef.current = null;
       }
       setHasCameraAccess(false);
     }
@@ -102,9 +124,17 @@ export default function InterviewRoomView({
     return () => {
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach(track => track.stop());
+        mediaStreamRef.current = null;
       }
     };
-  }, [isVideoRecording, isRunning]);
+  }, [isVideoRecording]);
+
+  // Attach stream after DOM render if hasCameraAccess changes
+  useEffect(() => {
+    if (hasCameraAccess && mediaStreamRef.current && videoRef.current) {
+      attachStreamToVideo(mediaStreamRef.current);
+    }
+  }, [hasCameraAccess]);
 
   // Format seconds -> 00:00:00
   const formatTimer = (totalSec: number) => {
@@ -255,44 +285,81 @@ export default function InterviewRoomView({
           {/* Main Stage Canvas / Webcam Video */}
           <div className="bg-slate-950 rounded-3xl overflow-hidden shadow-2xl border border-slate-800 relative aspect-video flex items-center justify-center">
             
-            {isVideoRecording && isRunning && hasCameraAccess ? (
+            {isVideoRecording && hasCameraAccess ? (
               <video
-                ref={videoRef}
+                ref={(node) => {
+                  videoRef.current = node;
+                  if (node && mediaStreamRef.current && node.srcObject !== mediaStreamRef.current) {
+                    node.srcObject = mediaStreamRef.current;
+                    node.play().catch(e => console.warn(e));
+                  }
+                }}
                 autoPlay
                 playsInline
                 muted
                 className="w-full h-full object-cover transform -scale-x-100"
               ></video>
             ) : (
-              /* High-fidelity Simulation Avatar Screen */
-              <div className="text-center p-8 relative z-10">
-                <div className="relative inline-block mb-4">
-                  <div className="h-24 w-24 rounded-full bg-gradient-to-tr from-amber-500 to-amber-300 text-slate-950 font-black text-3xl flex items-center justify-center mx-auto shadow-xl ring-4 ring-amber-500/20">
-                    {interview.candidateName.slice(0, 2).toUpperCase()}
-                  </div>
-                  {isRunning && isAudioRecording && (
-                    <div className="absolute -bottom-1 -right-1 bg-emerald-500 p-2 rounded-full border-2 border-slate-950 text-white">
-                      <Volume2 className="h-4 w-4 animate-bounce" />
+              /* High-fidelity Simulation Avatar Screen / Camera Perm Error */
+              <div className="text-center p-8 relative z-10 max-w-md mx-auto">
+                {cameraError ? (
+                  <div className="space-y-3">
+                    <div className="h-16 w-16 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center mx-auto">
+                      <AlertCircle className="h-8 w-8 text-amber-400" />
                     </div>
-                  )}
-                </div>
-
-                <h3 className="font-display font-bold text-xl text-white">{interview.candidateName}</h3>
-                <p className="text-xs text-amber-400 font-mono mt-1">
-                  {interview.modality === 'Online' ? 'Sessão Conectada via WebRTC' : `Presencial em ${interview.locationOrLink}`}
-                </p>
-
-                {/* Animated Audio Waveform */}
-                {isRunning && isAudioRecording && (
-                  <div className="flex items-center justify-center space-x-1 mt-6 h-8">
-                    {[40, 70, 30, 90, 60, 100, 50, 80, 40, 65].map((h, idx) => (
-                      <span
-                        key={idx}
-                        className="w-1.5 bg-amber-400 rounded-full transition-all duration-300 animate-pulse"
-                        style={{ height: `${h}%`, animationDelay: `${idx * 100}ms` }}
-                      ></span>
-                    ))}
+                    <p className="text-sm font-bold text-white">{cameraError}</p>
+                    <button
+                      onClick={startCameraStream}
+                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer inline-flex items-center space-x-1.5"
+                    >
+                      <Video className="h-4 w-4" />
+                      <span>Tentar Ativar Câmera Novamente</span>
+                    </button>
                   </div>
+                ) : (
+                  <>
+                    <div className="relative inline-block mb-4">
+                      <div className="h-24 w-24 rounded-full bg-gradient-to-tr from-amber-500 to-amber-300 text-slate-950 font-black text-3xl flex items-center justify-center mx-auto shadow-xl ring-4 ring-amber-500/20">
+                        {interview.candidateName.slice(0, 2).toUpperCase()}
+                      </div>
+                      {isRunning && isAudioRecording && (
+                        <div className="absolute -bottom-1 -right-1 bg-emerald-500 p-2 rounded-full border-2 border-slate-950 text-white">
+                          <Volume2 className="h-4 w-4 animate-bounce" />
+                        </div>
+                      )}
+                    </div>
+
+                    <h3 className="font-display font-bold text-xl text-white">{interview.candidateName}</h3>
+                    <p className="text-xs text-amber-400 font-mono mt-1">
+                      {interview.modality === 'Online' ? 'Sessão Conectada via WebRTC' : `Presencial em ${interview.locationOrLink}`}
+                    </p>
+
+                    <div className="mt-4">
+                      <button
+                        onClick={() => {
+                          setIsVideoRecording(true);
+                          startCameraStream();
+                        }}
+                        className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold text-xs px-4 py-2 rounded-xl transition-all cursor-pointer inline-flex items-center space-x-1.5"
+                      >
+                        <Video className="h-4 w-4" />
+                        <span>Ligar Câmera da Reunião</span>
+                      </button>
+                    </div>
+
+                    {/* Animated Audio Waveform */}
+                    {isRunning && isAudioRecording && (
+                      <div className="flex items-center justify-center space-x-1 mt-6 h-8">
+                        {[40, 70, 30, 90, 60, 100, 50, 80, 40, 65].map((h, idx) => (
+                          <span
+                            key={idx}
+                            className="w-1.5 bg-amber-400 rounded-full transition-all duration-300 animate-pulse"
+                            style={{ height: `${h}%`, animationDelay: `${idx * 100}ms` }}
+                          ></span>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}

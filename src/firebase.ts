@@ -3,7 +3,128 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { SaaSModule, SaaSProduct, SaaSPlan, SaaSCompany, UserAccount, UserRole } from './types_master';
+import { 
+  SaaSModule, 
+  SaaSProduct, 
+  SaaSPlan, 
+  SaaSCompany, 
+  UserAccount, 
+  UserRole,
+  SiteConfig,
+  SiteHomeConfig,
+  SiteEmpresaConfig,
+  SitePlanoConfig,
+  SiteMidiaConfig,
+  SiteContatoConfig
+} from './types_master';
+
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import firebaseConfig from '../firebase-applet-config.json';
+
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+export const firestoreDb = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+export const DEFAULT_SITE_CONFIG: SiteConfig = {
+  home: {
+    titulo: 'Conectando talentos às melhores oportunidades',
+    subtitulo: 'Plataforma de Recrutamento e Gestão de Pessoas',
+    descricao: 'A plataforma digital completa de RH onde candidatos, empresas e gestão de pessoas se encontram em um só lugar.',
+    botaoTexto: 'Cadastrar Currículo',
+    botaoLink: '#tres-publicos',
+    imagem: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1200&q=80'
+  },
+  empresa: {
+    missao: 'Transformar a gestão de pessoas e o recrutamento no Brasil conectando empresas excepcionais a talentos brilhantes de forma ágil, transparente e humana.',
+    visao: 'Ser a plataforma líder e referência nacional em atração de talentos, inovação em Recursos Humanos e inteligência em departamento pessoal.',
+    valores: [
+      'Inovação Contínua',
+      'Transparência e Ética',
+      'Tecnologia com Propósito',
+      'Pessoas em Primeiro Lugar',
+      'Conformidade e Segurança LGPD'
+    ]
+  },
+  planos: [
+    {
+      id: 'plano-1',
+      nome: 'Básico',
+      descricao: 'Ideal para pequenas empresas iniciando a estruturação do RH e contratações pontuais.',
+      valorMensal: 'Sob consulta',
+      valorAnual: 'Sob consulta',
+      beneficios: [
+        'Publicação ilimitada de vagas',
+        'Triagem de candidatos em tempo real',
+        'Painel exclusivo da empresa',
+        'Suporte por e-mail'
+      ],
+      botaoTexto: 'Falar com Consultor',
+      botaoLink: '#contato',
+      ativo: true,
+      ordem: 1,
+      destaque: false
+    },
+    {
+      id: 'plano-2',
+      nome: 'Profissional',
+      descricao: 'Para empresas em crescimento que necessitam de atração contínua e banco de talentos completo.',
+      valorMensal: 'Sob consulta',
+      valorAnual: 'Sob consulta',
+      beneficios: [
+        'Tudo do Plano Básico',
+        'Acesso completo ao Banco de Talentos',
+        'Filtros avançados de seleção por área',
+        'Salvar candidatos favoritos',
+        'Inteligência Artificial de Triagem'
+      ],
+      botaoTexto: 'Falar com Consultor',
+      botaoLink: '#contato',
+      ativo: true,
+      ordem: 2,
+      destaque: true,
+      badge: 'MAIS POPULAR'
+    },
+    {
+      id: 'plano-3',
+      nome: 'Enterprise',
+      descricao: 'Solução personalizada corporativa com recrutamento dedicado e consultoria completa de DP.',
+      valorMensal: 'Personalizado',
+      valorAnual: 'Personalizado',
+      beneficios: [
+        'Tudo do Plano Profissional',
+        'Consultoria dedicada Rafaela Lourenço RH',
+        'Entrevistas por competências gravadas',
+        'Integração total com Folha e Ponto',
+        'Atendimento e SLA prioritário 24/7'
+      ],
+      botaoTexto: 'Falar com Consultor',
+      botaoLink: '#contato',
+      ativo: true,
+      ordem: 3,
+      destaque: false
+    }
+  ],
+  midia: {
+    logo: '',
+    favicon: '',
+    bannerInicial: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1200&q=80',
+    imagensInstitucionais: []
+  },
+  contato: {
+    telefone: '(11) 3456-7890',
+    whatsapp: '(11) 98765-4321',
+    email: 'contato@rafaelalourenco.com.br',
+    endereco: 'Av. Paulista, 1000, Bela Vista, São Paulo/SP - CEP 01310-100',
+    redesSociais: {
+      linkedin: 'https://linkedin.com',
+      instagram: 'https://instagram.com',
+      facebook: 'https://facebook.com',
+      youtube: 'https://youtube.com',
+      twitter: ''
+    }
+  }
+};
+
 import { 
   Employee, 
   Job, 
@@ -54,7 +175,8 @@ const KEYS = {
   HORAS_EXTRAS: 'firebase_horas_extras',
   CORRECOES_PONTO: 'firebase_correcoes_ponto',
   TABELA_INSS: 'firebase_tabela_inss',
-  TABELA_IRRF: 'firebase_tabela_irrf'
+  TABELA_IRRF: 'firebase_tabela_irrf',
+  SITE_CONFIG: 'firebase_site_config'
 };
 
 // Initial Módulos available for sale as listed in the user prompt:
@@ -384,7 +506,116 @@ interface FirebaseService {
     getUsers(): Promise<UserAccount[]>;
     saveUser(user: UserAccount): Promise<UserAccount>;
     deleteUser(id: string): Promise<void>;
+    getSiteConfig(): Promise<SiteConfig>;
+    saveSiteHome(home: SiteHomeConfig): Promise<void>;
+    saveSiteEmpresa(empresa: SiteEmpresaConfig): Promise<void>;
+    saveSitePlanos(planos: SitePlanoConfig[]): Promise<void>;
+    saveSiteMidia(midia: SiteMidiaConfig): Promise<void>;
+    saveSiteContato(contato: SiteContatoConfig): Promise<void>;
+    saveAllSiteConfig(config: SiteConfig): Promise<void>;
   };
+}
+
+// --- STANDALONE SITE CONFIGURATIONS (MASTER ADMIN - SITE PRINCIPAL) ---
+export async function getSiteConfig(): Promise<SiteConfig> {
+  try {
+    const local = localStorage.getItem(KEYS.SITE_CONFIG);
+    let baseConfig: SiteConfig = local ? JSON.parse(local) : JSON.parse(JSON.stringify(DEFAULT_SITE_CONFIG));
+
+    const docNames = ['home', 'empresa', 'planos', 'midia', 'contato'];
+    const docSnaps = await Promise.allSettled(
+      docNames.map(dName => getDoc(doc(firestoreDb, 'site_config', dName)))
+    );
+
+    docSnaps.forEach((res, idx) => {
+      if (res.status === 'fulfilled' && res.value.exists()) {
+        const data = res.value.data();
+        const key = docNames[idx] as keyof SiteConfig;
+        if (key === 'planos' && data && data.items) {
+          baseConfig.planos = data.items;
+        } else if (data) {
+          (baseConfig as any)[key] = { ...baseConfig[key], ...data };
+        }
+      }
+    });
+
+    localStorage.setItem(KEYS.SITE_CONFIG, JSON.stringify(baseConfig));
+    return baseConfig;
+  } catch (err) {
+    console.warn('Using local site_config fallback:', err);
+    const local = localStorage.getItem(KEYS.SITE_CONFIG);
+    return local ? JSON.parse(local) : JSON.parse(JSON.stringify(DEFAULT_SITE_CONFIG));
+  }
+}
+
+export async function saveSiteHome(home: SiteHomeConfig): Promise<void> {
+  const config = await getSiteConfig();
+  config.home = home;
+  localStorage.setItem(KEYS.SITE_CONFIG, JSON.stringify(config));
+  try {
+    await setDoc(doc(firestoreDb, 'site_config', 'home'), home);
+  } catch (err) {
+    console.warn('Error saving home config to Firestore:', err);
+  }
+}
+
+export async function saveSiteEmpresa(empresa: SiteEmpresaConfig): Promise<void> {
+  const config = await getSiteConfig();
+  config.empresa = empresa;
+  localStorage.setItem(KEYS.SITE_CONFIG, JSON.stringify(config));
+  try {
+    await setDoc(doc(firestoreDb, 'site_config', 'empresa'), empresa);
+  } catch (err) {
+    console.warn('Error saving empresa config to Firestore:', err);
+  }
+}
+
+export async function saveSitePlanos(planos: SitePlanoConfig[]): Promise<void> {
+  const config = await getSiteConfig();
+  config.planos = planos;
+  localStorage.setItem(KEYS.SITE_CONFIG, JSON.stringify(config));
+  try {
+    await setDoc(doc(firestoreDb, 'site_config', 'planos'), { items: planos });
+  } catch (err) {
+    console.warn('Error saving planos config to Firestore:', err);
+  }
+}
+
+export async function saveSiteMidia(midia: SiteMidiaConfig): Promise<void> {
+  const config = await getSiteConfig();
+  config.midia = midia;
+  localStorage.setItem(KEYS.SITE_CONFIG, JSON.stringify(config));
+  try {
+    await setDoc(doc(firestoreDb, 'site_config', 'midia'), midia);
+  } catch (err) {
+    console.warn('Error saving midia config to Firestore:', err);
+  }
+}
+
+export async function saveSiteContato(contato: SiteContatoConfig): Promise<void> {
+  const config = await getSiteConfig();
+  config.contato = contato;
+  localStorage.setItem(KEYS.SITE_CONFIG, JSON.stringify(config));
+  try {
+    await setDoc(doc(firestoreDb, 'site_config', 'contato'), contato);
+  } catch (err) {
+    console.warn('Error saving contato config to Firestore:', err);
+  }
+}
+
+export async function saveAllSiteConfig(config: SiteConfig): Promise<void> {
+  localStorage.setItem(KEYS.SITE_CONFIG, JSON.stringify(config));
+  try {
+    await Promise.all([
+      setDoc(doc(firestoreDb, 'site_config', 'home'), config.home),
+      setDoc(doc(firestoreDb, 'site_config', 'empresa'), config.empresa),
+      setDoc(doc(firestoreDb, 'site_config', 'planos'), { items: config.planos }),
+      setDoc(doc(firestoreDb, 'site_config', 'midia'), config.midia),
+      setDoc(doc(firestoreDb, 'site_config', 'contato'), config.contato)
+    ]);
+  } catch (err) {
+    console.warn('Error saving all site_config to Firestore:', err);
+  }
 }
 
 export const firebaseService: FirebaseService = {
@@ -586,6 +817,36 @@ export const firebaseService: FirebaseService = {
 
     getUsers(): Promise<UserAccount[]> { return firebaseService.db.getCollection<UserAccount>('USERS'); },
     saveUser(user: UserAccount): Promise<UserAccount> { return firebaseService.db.saveDoc<UserAccount>('USERS', user); },
-    deleteUser(id: string): Promise<void> { return firebaseService.db.deleteDoc('USERS', id); }
+    deleteUser(id: string): Promise<void> { return firebaseService.db.deleteDoc('USERS', id); },
+
+    // --- SITE CONFIGURATIONS (MASTER ADMIN - SITE PRINCIPAL) ---
+    getSiteConfig(): Promise<SiteConfig> {
+      return getSiteConfig();
+    },
+
+    saveSiteHome(home: SiteHomeConfig): Promise<void> {
+      return saveSiteHome(home);
+    },
+
+    saveSiteEmpresa(empresa: SiteEmpresaConfig): Promise<void> {
+      return saveSiteEmpresa(empresa);
+    },
+
+    saveSitePlanos(planos: SitePlanoConfig[]): Promise<void> {
+      return saveSitePlanos(planos);
+    },
+
+    saveSiteMidia(midia: SiteMidiaConfig): Promise<void> {
+      return saveSiteMidia(midia);
+    },
+
+    saveSiteContato(contato: SiteContatoConfig): Promise<void> {
+      return saveSiteContato(contato);
+    },
+
+    saveAllSiteConfig(config: SiteConfig): Promise<void> {
+      return saveAllSiteConfig(config);
+    }
+
   }
 };

@@ -19,7 +19,13 @@ export interface Candidate {
   jobTitle?: string; // Título da vaga para facilidade
   aiScore?: number; // Pontuação da IA (0-100)
   aiAnalysis?: string; // Análise detalhada do currículo pela IA
-  status?: 'Novo' | 'Triagem' | 'Entrevista' | 'Aprovado' | 'Reprovado';
+  status?: 'Novo' | 'Triagem' | 'Entrevista' | 'Entrevista RH' | 'Entrevista Técnica' | 'Proposta' | 'Aprovado' | 'Reprovado' | string;
+  notes?: string; // Anotações do recrutador
+  rating?: number; // Avaliação manual 1-5
+  expectedSalary?: string;
+  cpf?: string;
+  linkedinUrl?: string;
+  portfolioUrl?: string;
 }
 
 export interface JobAnalytics {
@@ -32,16 +38,19 @@ export interface JobAnalytics {
 export interface Job {
   id: string;
   title: string;
+  role?: string;
   department: string;
   location: string;
-  type: string; // CLT, PJ, Estágio
+  type: string; // CLT, PJ, Estágio, Temporário
   workModel: string; // Presencial, Híbrido, Remoto
   salaryRange: string;
   description: string;
   requirements: string[];
   active: boolean;
   createdAt: string;
+  publishedAt?: string;
   publishedToPortal?: boolean; // Publicar automaticamente no portal
+  status?: 'Rascunho' | 'Publicada' | 'Encerrada' | string;
 
   // Campos para Página Pública da Vaga
   slug?: string;

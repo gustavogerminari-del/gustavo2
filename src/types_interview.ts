@@ -2,6 +2,8 @@
  * Types for the "Entrevista Inteligente com IA" Module
  */
 
+import { VideoProvider } from './services/videoIntegrationService';
+
 export type InterviewStatus = 
   | 'Agendada' 
   | 'Em Andamento' 
@@ -9,7 +11,8 @@ export type InterviewStatus =
   | 'Aprovada' 
   | 'Reprovada' 
   | 'Segunda Entrevista' 
-  | 'Banco de Talentos';
+  | 'Banco de Talentos'
+  | 'Cancelada';
 
 export type InterviewModality = 'Presencial' | 'Online' | 'Telefone';
 
@@ -100,6 +103,8 @@ export interface SmartInterview {
   date: string; // YYYY-MM-DD
   time: string; // HH:MM
   modality: InterviewModality;
+  videoPlatform?: VideoProvider;
+  videoPlatformConnected?: boolean;
   locationOrLink: string;
   notes?: string;
   status: InterviewStatus;

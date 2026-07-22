@@ -3,27 +3,44 @@ import { Clock, CheckCircle2, X, Plus, AlertCircle, FileText, Bus, HeartHandshak
 import { ExtraHourRequest, PointCorrectionRequest, Employee } from '../types';
 
 interface EmployeePortalRequestsModalProps {
-  employee: Employee;
+  employee?: Employee;
   isOpen: boolean;
   type: 'hora_extra' | 'correcao_ponto' | 'beneficios';
   onClose: () => void;
-  coordinators: Employee[];
+  coordinators?: Employee[];
   onSubmitExtraHour: (request: ExtraHourRequest) => void;
   onSubmitPointCorrection: (request: PointCorrectionRequest) => void;
   triggerToast: (msg: string) => void;
 }
 
 export default function EmployeePortalRequestsModal({
-  employee,
+  employee: propEmployee,
   isOpen,
   type,
   onClose,
-  coordinators,
+  coordinators = [],
   onSubmitExtraHour,
   onSubmitPointCorrection,
   triggerToast
 }: EmployeePortalRequestsModalProps) {
   if (!isOpen) return null;
+
+  const employee: Employee = propEmployee || {
+    id: 'emp-fallback',
+    name: 'Colaborador',
+    email: 'colaborador@empresa.com',
+    phone: '(11) 99999-9999',
+    role: 'Colaborador',
+    department: 'Operacional',
+    salary: 5000,
+    admissionDate: '2026-01-01',
+    status: 'Ativo',
+    coordinatorName: 'Gestor Direto',
+    hasValeTransporte: true,
+    ticketPrice: 5.0,
+    daysUsed: 22,
+    vtMonthlyValue: 220
+  };
 
   // Form State for Extra Hours
   const [heDate, setHeDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -346,7 +363,7 @@ export default function EmployeePortalRequestsModal({
                     <span className="font-bold text-emerald-700">
                       - R$ {Math.min(
                         employee.vtMonthlyValue || ((employee.ticketPrice || 0) * (employee.daysUsed || 22) * 2),
-                        employee.salary * 0.06
+                        (employee.salary || 0) * 0.06
                       ).toFixed(2)}
                     </span>
                   </div>

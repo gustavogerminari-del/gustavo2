@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { firebaseService } from '../firebase';
 import { SaaSModule, SaaSProduct, SaaSPlan, SaaSCompany, UserAccount } from '../types_master';
+import SiteConfigManager from './SiteConfigManager';
 
 interface MasterDashboardProps {
   currentUser: UserAccount;
@@ -37,7 +38,7 @@ interface MasterDashboardProps {
 
 export default function MasterDashboard({ currentUser, onLogout }: MasterDashboardProps) {
   // Tabs
-  const [activeTab, setActiveTab] = useState<'overview' | 'modules' | 'products' | 'plans' | 'companies'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'modules' | 'products' | 'plans' | 'companies' | 'site_config'>('overview');
   
   // Data State
   const [modules, setModules] = useState<SaaSModule[]>([]);
@@ -505,6 +506,20 @@ export default function MasterDashboard({ currentUser, onLogout }: MasterDashboa
             <Building2 className="h-4.5 w-4.5" />
             <span>Empresas Clientes ({companies.length})</span>
           </button>
+
+          <div className="pt-3 pb-1 px-2 text-[10px] font-mono font-bold text-amber-500 uppercase tracking-wider border-t border-slate-800/80 mt-2">
+            SITE INSTITUCIONAL
+          </div>
+
+          <button
+            onClick={() => { setActiveTab('site_config'); setSearchQuery(''); }}
+            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-medium transition-all ${
+              activeTab === 'site_config' ? 'bg-amber-500 text-slate-950 font-semibold shadow-md shadow-amber-500/10' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <Globe className="h-4.5 w-4.5 text-amber-400" />
+            <span className="font-bold">Gerenciador do Site Principal</span>
+          </button>
         </nav>
 
         {/* Footer actions */}
@@ -532,6 +547,7 @@ export default function MasterDashboard({ currentUser, onLogout }: MasterDashboa
               {activeTab === 'products' && 'Produtos de Venda'}
               {activeTab === 'plans' && 'Criador e Gestão de Planos'}
               {activeTab === 'companies' && 'Controle de Empresas Clientes'}
+              {activeTab === 'site_config' && 'Gerenciador do Site Principal'}
             </h2>
             <p className="text-slate-400 text-xs mt-1">
               {activeTab === 'overview' && 'Monitore a receita, planos contratados e status do ecossistema SaaS.'}
@@ -539,11 +555,12 @@ export default function MasterDashboard({ currentUser, onLogout }: MasterDashboa
               {activeTab === 'products' && 'Combine módulos em pacotes de venda específicos para o mercado.'}
               {activeTab === 'plans' && 'Monte ofertas completas recorrentes (mensais / anuais) com limites de usuários.'}
               {activeTab === 'companies' && 'Cadastre corporações, altere assinaturas, libere módulos adicionais ou bloqueie acessos.'}
+              {activeTab === 'site_config' && 'Edite o conteúdo institucional, imagens, planos e contatos do portal público sem alterar código.'}
             </p>
           </div>
 
           {/* Search bar inside lists */}
-          {activeTab !== 'overview' && (
+          {activeTab !== 'overview' && activeTab !== 'site_config' && (
             <div className="relative flex items-center max-w-xs w-full">
               <Search className="h-4 w-4 text-slate-500 absolute left-3" />
               <input
@@ -1006,6 +1023,11 @@ export default function MasterDashboard({ currentUser, onLogout }: MasterDashboa
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* --- TAB 6: GERENCIADOR DO SITE PRINCIPAL --- */}
+            {activeTab === 'site_config' && (
+              <SiteConfigManager />
             )}
           </>
         )}

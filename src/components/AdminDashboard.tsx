@@ -736,9 +736,9 @@ export default function AdminDashboard({
   const filteredEmployeesList = useMemo(() => {
     return employees.filter(e => {
       const matchSearch = empSearch === '' || 
-        e.name.toLowerCase().includes(empSearch.toLowerCase()) ||
-        e.role.toLowerCase().includes(empSearch.toLowerCase()) ||
-        e.email.toLowerCase().includes(empSearch.toLowerCase());
+        (e.name || '').toLowerCase().includes(empSearch.toLowerCase()) ||
+        (e.role || '').toLowerCase().includes(empSearch.toLowerCase()) ||
+        (e.email || '').toLowerCase().includes(empSearch.toLowerCase());
       
       const matchDept = empDeptFilter === 'Todos' || e.department === empDeptFilter;
       const matchStatus = empStatusFilter === 'Todos' || e.status === empStatusFilter;
@@ -750,9 +750,9 @@ export default function AdminDashboard({
   const filteredCandidatesList = useMemo(() => {
     return candidates.filter(c => {
       const matchSearch = candSearch === '' ||
-        c.name.toLowerCase().includes(candSearch.toLowerCase()) ||
-        c.experience.toLowerCase().includes(candSearch.toLowerCase()) ||
-        c.city.toLowerCase().includes(candSearch.toLowerCase());
+        (c.name || '').toLowerCase().includes(candSearch.toLowerCase()) ||
+        (c.experience || '').toLowerCase().includes(candSearch.toLowerCase()) ||
+        (c.city || '').toLowerCase().includes(candSearch.toLowerCase());
 
       const matchArea = candAreaFilter === 'Todos' || c.area === candAreaFilter;
 
@@ -763,7 +763,7 @@ export default function AdminDashboard({
   const filteredTimeRegistersList = useMemo(() => {
     return timeRegisters.filter(r => {
       return pointSearch === '' || 
-        r.employeeName.toLowerCase().includes(pointSearch.toLowerCase()) ||
+        (r.employeeName || '').toLowerCase().includes(pointSearch.toLowerCase()) ||
         r.date.includes(pointSearch);
     }).reverse(); // Most recent first
   }, [timeRegisters, pointSearch]);  const releasedModules = useMemo<string[]>(() => {
@@ -2349,12 +2349,15 @@ export default function AdminDashboard({
           <ConsultorRHModule subTab={consultorSubTab} onSubTabChange={setConsultorSubTab} />
         )}
 
-        {/* --- 16. ENTREVISTA INTELIGENTE COM IA MODULE --- */}
+        {/* --- 16. ENTREVISTA INTELIGENTE COM IA MODULE (DENTRO DE RECRUTAMENTO & SELEÇÃO) --- */}
         {activeTab === 'entrevistas-ia' && (
-          <SmartInterviewModule
+          <RecruitmentModule 
+            initialTab="entrevistas"
             jobs={jobs}
             candidates={candidates}
-            onBackToSystem={() => setActiveTab('dashboard')}
+            onUpdateJobs={onUpdateJobs}
+            onUpdateCandidates={onUpdateCandidates}
+            triggerToast={triggerToast}
           />
         )}
 
@@ -2818,7 +2821,7 @@ export default function AdminDashboard({
           isOpen={portalModalOpen}
           type={portalModalType}
           onClose={() => setPortalModalOpen(false)}
-          coordinators={employees.filter(e => e.role.toLowerCase().includes('coordenador') || e.role.toLowerCase().includes('gerente') || e.role.toLowerCase().includes('líder'))}
+          coordinators={employees.filter(e => (e.role || '').toLowerCase().includes('coordenador') || (e.role || '').toLowerCase().includes('gerente') || (e.role || '').toLowerCase().includes('líder'))}
           onSubmitExtraHour={(req) => onUpdateExtraHours([...extraHours, req])}
           onSubmitPointCorrection={(req) => onUpdatePointCorrections([...pointCorrections, req])}
           triggerToast={triggerToast}

@@ -29,10 +29,30 @@ export function generateJobSlug(title: string, id: string): string {
   return `${cleanTitle}-${shortId}`;
 }
 
+export function isJobPublished(job: Job): boolean {
+  if (job.publishedToPortal === false) {
+    return false;
+  }
+  if (job.active === false) {
+    return false;
+  }
+  if (job.status === 'Rascunho' || job.status === 'Encerrada' || job.status === 'Cancelada' || job.status === 'Finalizada' || job.status === 'Pausada') {
+    return false;
+  }
+  if (job.status === 'Publicada' || job.status === 'Aberta' || job.status === 'Em Andamento') {
+    return true;
+  }
+  return true;
+}
+
 export function getPublicJobUrl(job: Job): string {
   const slug = job.slug || generateJobSlug(job.title, job.id);
-  const baseUrl = window.location.origin + window.location.pathname;
-  return `${baseUrl}?vaga=${slug}`;
+  const origin = window.location.origin;
+  return `${origin}/vaga/${slug}`;
+}
+
+export function getPublicJobsListUrl(): string {
+  return `${window.location.origin}/vagas`;
 }
 
 export function getDefaultBanner(department?: string): string {

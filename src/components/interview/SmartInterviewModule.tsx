@@ -292,6 +292,14 @@ export default function SmartInterviewModule({
               onOpenNewModal={handleOpenNewModal}
               onSelectInterview={handleSelectInterview}
               onEnterRoom={handleEnterRoom}
+              onUpdateInterview={async (id, updates) => {
+                await InterviewService.updateInterview(id, updates);
+                await loadData();
+              }}
+              onDeleteInterview={async (id) => {
+                await InterviewService.deleteInterview(id);
+                await loadData();
+              }}
             />
           )}
 

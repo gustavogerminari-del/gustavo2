@@ -55,12 +55,41 @@ import ConsultorRelatoriosIA from './consultor/ConsultorRelatoriosIA';
 import ConsultorPortals from './consultor/ConsultorPortals';
 import SmartInterviewModule from './interview/SmartInterviewModule';
 
+import { 
+  Job, 
+  Candidate, 
+  Employee, 
+  OnboardingContract 
+} from '../types';
+import { generateJobSlug } from './publicJobUtils';
+
 interface ConsultorRHModuleProps {
   subTab?: string;
   onSubTabChange?: (tab: string) => void;
+  systemJobs?: Job[];
+  systemCandidates?: Candidate[];
+  systemEmployees?: Employee[];
+  systemContracts?: OnboardingContract[];
+  onUpdateJobs?: (jobs: Job[]) => void;
+  onUpdateCandidates?: (candidates: Candidate[]) => void;
+  onUpdateEmployees?: (employees: Employee[]) => void;
+  onUpdateContracts?: (contracts: OnboardingContract[]) => void;
+  triggerToast?: (msg: string) => void;
 }
 
-export default function ConsultorRHModule({ subTab, onSubTabChange }: ConsultorRHModuleProps = {}) {
+export default function ConsultorRHModule({ 
+  subTab, 
+  onSubTabChange,
+  systemJobs,
+  systemCandidates,
+  systemEmployees,
+  systemContracts,
+  onUpdateJobs,
+  onUpdateCandidates,
+  onUpdateEmployees,
+  onUpdateContracts,
+  triggerToast
+}: ConsultorRHModuleProps = {}) {
   
   // Navigation State
   const [internalTab, setInternalTab] = useState<
@@ -174,21 +203,118 @@ export default function ConsultorRHModule({ subTab, onSubTabChange }: ConsultorR
   const handleUpdateCliente = (cli: ClienteEmpresa) => setClientes(clientes.map(c => c.id === cli.id ? cli : c));
   const handleDeleteCliente = (id: string) => setClientes(clientes.filter(c => c.id !== id));
 
+  // Bi-directional synchronization with System Jobs and Candidates
+  useEffect(() => {
+    if (systemJobs && systemJobs.length > 0) {
+      setVagas(prev => {
+        const vagaMap = new Map<string, VagaConsultoria>();
+        prev.forEach(v => vagaMap.set(v.id, v));
+        
+        systemJobs.forEach(j => {
+          if (!vagaMap.has(j.id)) {
+            vagaMap.set(j.id, {
+              id: j.id,
+              clienteId: clientes[0]?.id || 'cli-1',
+              clienteNome: j.department || 'Empresa Cliente',
+              cargo: j.title,
+              descricao: j.description || '',
+              responsabilidades: [],
+              requisitos: j.requirements || [],
+              beneficios: [],
+              salario: j.salaryRange || 'A combinar',
+              cidade: j.location ? j.location.split('-')[0].trim() : 'São Paulo',
+              estado: j.location && j.location.includes('-') ? j.location.split('-')[1].trim() : 'SP',
+              modalidade: (j.workModel as any) || 'Híbrido',
+              tipoContratacao: (j.type as any) || 'CLT',
+              quantidade: 1,
+              prazo: '2026-12-31',
+              status: j.active ? 'Em Andamento' : 'Pausada',
+              publicadoPortal: true,
+              canaisPublicacao: ['Portal GestRH'],
+              consultorId: 'consultor-1',
+              dataCriacao: j.createdAt || new Date().toISOString().split('T')[0]
+            });
+          }
+        });
+        return Array.from(vagaMap.values());
+      });
+    }
+  }, [systemJobs]);
+
+  useEffect(() => {
+    if (systemCandidates && systemCandidates.length > 0) {
+      setCandidatos(prev => {
+        const candMap = new Map<string, CandidatoConsultoria>();
+        prev.forEach(c => candMap.set(c.id, c));
+
+        systemCandidates.forEach(sc => {
+          if (!candMap.has(sc.id)) {
+            candMap.set(sc.id, {
+              id: sc.id,
+              nome: sc.name,
+              email: sc.email,
+              telefone: sc.phone,
+              cidade: sc.city || 'São Paulo',
+              estado: sc.state || 'SP',
+              cargoDesejado: sc.jobTitle || sc.area || 'Desenvolvedor / Especialista',
+              experienciaAnos: 3,
+              escolaridade: 'Ensino Superior',
+              idiomas: ['Português'],
+              cursos: [],
+              hardSkills: [],
+              softSkills: [],
+              pretensaoSalarial: 5000,
+              disponibilidade: 'Imediata',
+              favorito: false,
+              tags: ['Sistema'],
+              vagaId: sc.jobId || vagas[0]?.id || 'vaga-1',
+              etapaPipeline: sc.status === 'Aprovado' ? 'Aprovado' : sc.status === 'Triagem' ? 'Triagem' : 'Novo',
+              resumeUrl: sc.resumeUrl,
+              resumeText: sc.experience,
+              dataCadastro: sc.createdAt || new Date().toISOString().split('T')[0],
+              consultorId: 'consultor-1',
+              historicoEtapas: []
+            });
+          }
+        });
+        return Array.from(candMap.values());
+      });
+    }
+  }, [systemCandidates]);
+
   const syncVagasToFirebaseJobs = (updatedVagas: VagaConsultoria[]) => {
     try {
-      const convertedJobs = updatedVagas.map(v => ({
-        id: v.id,
-        title: v.cargo,
-        department: v.clienteNome || 'Consultoria',
-        location: `${v.cidade || ''} - ${v.estado || ''}`,
-        type: v.tipoContratacao || 'CLT',
-        workModel: v.modalidade || 'Híbrido',
-        salaryRange: typeof v.salario === 'number' ? `R$ ${v.salario.toLocaleString('pt-BR')}` : String(v.salario || 'A combinar'),
-        description: v.descricao,
-        requirements: v.requisitos || [],
-        active: v.status === 'Aberta' || v.status === 'Em Andamento',
-        createdAt: v.dataCriacao || new Date().toISOString().split('T')[0]
-      }));
+      const convertedJobs: Job[] = updatedVagas.map(v => {
+        const statusStr = (v.status as string) || 'Aberta';
+        const isPublic = statusStr !== 'Rascunho' && statusStr !== 'Finalizada' && statusStr !== 'Cancelada';
+        const jobStatus = statusStr === 'Rascunho' ? 'Rascunho' : (!isPublic ? 'Encerrada' : 'Publicada');
+        return {
+          id: v.id,
+          title: v.cargo,
+          role: v.cargo,
+          department: v.clienteNome || 'Consultoria',
+          location: `${v.cidade || ''} - ${v.estado || ''}`,
+          city: v.cidade,
+          state: v.estado,
+          companyName: v.clienteNome || 'Cliente Consultoria',
+          type: v.tipoContratacao || 'CLT',
+          workModel: v.modalidade || 'Híbrido',
+          salaryRange: typeof v.salario === 'number' ? `R$ ${v.salario.toLocaleString('pt-BR')}` : String(v.salario || 'A combinar'),
+          description: v.descricao,
+          requirements: v.requisitos || [],
+          benefits: v.beneficios || [],
+          responsibilities: v.responsabilidades || [],
+          active: isPublic,
+          status: jobStatus,
+          publishedToPortal: isPublic,
+          createdAt: v.dataCriacao || new Date().toISOString().split('T')[0],
+          slug: generateJobSlug(v.cargo, v.id)
+        };
+      });
+
+      if (onUpdateJobs) {
+        onUpdateJobs(convertedJobs);
+      }
 
       // Merge converted jobs with existing non-consultor jobs
       const existingRaw = localStorage.getItem('firebase_jobs') || localStorage.getItem('JOBS');
@@ -207,6 +333,29 @@ export default function ConsultorRHModule({ subTab, onSubTabChange }: ConsultorR
     }
   };
 
+  const syncCandidatosToSystemCandidates = (updatedCandidatos: CandidatoConsultoria[]) => {
+    if (!onUpdateCandidates) return;
+    const convertedCandidates: Candidate[] = updatedCandidatos.map(c => {
+      const matchedVaga = vagas.find(v => v.id === c.vagaId);
+      return {
+        id: c.id,
+        name: c.nome,
+        email: c.email,
+        phone: c.telefone,
+        city: c.cidade,
+        state: c.estado,
+        area: matchedVaga ? matchedVaga.clienteNome : 'Consultoria',
+        experience: c.resumeText || '',
+        resumeUrl: c.resumeUrl || '',
+        createdAt: c.dataCadastro,
+        jobId: c.vagaId,
+        jobTitle: matchedVaga ? matchedVaga.cargo : c.cargoDesejado,
+        status: c.etapaPipeline === 'Contratado' ? 'Aprovado' : c.etapaPipeline === 'Aprovado' ? 'Aprovado' : 'Triagem'
+      };
+    });
+    onUpdateCandidates(convertedCandidates);
+  };
+
   const handleAddVaga = (vaga: VagaConsultoria) => {
     const updated = [vaga, ...vagas];
     setVagas(updated);
@@ -223,8 +372,16 @@ export default function ConsultorRHModule({ subTab, onSubTabChange }: ConsultorR
     syncVagasToFirebaseJobs(updated);
   };
 
-  const handleAddCandidato = (cand: CandidatoConsultoria) => setCandidatos([cand, ...candidatos]);
-  const handleUpdateCandidato = (cand: CandidatoConsultoria) => setCandidatos(candidatos.map(c => c.id === cand.id ? cand : c));
+  const handleAddCandidato = (cand: CandidatoConsultoria) => {
+    const updated = [cand, ...candidatos];
+    setCandidatos(updated);
+    syncCandidatosToSystemCandidates(updated);
+  };
+  const handleUpdateCandidato = (cand: CandidatoConsultoria) => {
+    const updated = candidatos.map(c => c.id === cand.id ? cand : c);
+    setCandidatos(updated);
+    syncCandidatosToSystemCandidates(updated);
+  };
 
   const handleAddEntrevista = (ent: EntrevistaConsultoria) => setEntrevistas([ent, ...entrevistas]);
   const handleUpdateEntrevista = (ent: EntrevistaConsultoria) => setEntrevistas(entrevistas.map(e => e.id === ent.id ? ent : e));
