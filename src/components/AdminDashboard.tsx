@@ -43,8 +43,11 @@ import {
   Sparkles,
   FileSignature,
   LayoutDashboard,
-  ChevronDown
+  ChevronDown,
+  Palette
 } from 'lucide-react';
+
+import { layoutService, CompanyLayoutConfig } from '../services/layoutService';
 
 import { 
   ResponsiveContainer, 
@@ -226,6 +229,41 @@ export default function AdminDashboard({
     }
     return rawDocuments;
   }, [rawDocuments, currentUser, matchedEmployee]);
+
+  // SaaS Company Custom Layout Config
+  const companyLayout = useMemo(() => {
+    const compId = currentUser?.companyId || 'company-1';
+    return layoutService.getCompanyLayout(compId, settings?.companyName || 'Empresa ABC');
+  }, [currentUser, settings]);
+
+  // Menu customization helper
+  const getCustomMenuLabel = (menuId: string, defaultName: string) => {
+    const custom = companyLayout?.menus?.find(m => m.id === menuId || m.originalLabel.toLowerCase().includes(defaultName.toLowerCase()));
+    return custom?.customLabel || defaultName;
+  };
+
+  const isMenuVisible = (menuId: string) => {
+    const item = companyLayout?.menus?.find(m => m.id === menuId);
+    return item ? item.visible : true;
+  };
+
+  // Layout Request Modal for Client Admin
+  const [isLayoutRequestModalOpen, setIsLayoutRequestModalOpen] = useState(false);
+  const [layoutRequestText, setLayoutRequestText] = useState('');
+
+  const handleSendLayoutRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!layoutRequestText.trim()) return;
+    layoutService.addChangeRequest({
+      companyId: currentUser?.companyId || 'company-1',
+      companyName: settings?.companyName || 'Empresa ABC',
+      requestedBy: currentUser?.name || 'Administrador do Cliente',
+      description: layoutRequestText
+    });
+    setIsLayoutRequestModalOpen(false);
+    setLayoutRequestText('');
+    triggerToast('✓ Solicitação de alteração de layout enviada com sucesso para a equipe MASTER!');
+  };
 
   // Interactive Toast
   const [showToast, setShowToast] = useState<string | null>(null);
@@ -822,12 +860,20 @@ export default function AdminDashboard({
           {/* Company Brand Logo */}
           <div className="p-6 border-b border-emerald-600 flex items-center space-x-3 justify-between">
             <div className="flex items-center space-x-3">
-              <div className="p-2 bg-emerald-500 rounded-xl text-white">
-                <Building2 className="h-5 w-5" />
-              </div>
+              {companyLayout?.identity?.logoUrl ? (
+                <img src={companyLayout.identity.logoUrl} alt="Logo" className="h-8 w-auto max-w-[120px] object-contain rounded" />
+              ) : (
+                <div className="p-2 bg-emerald-500 rounded-xl text-white">
+                  <Building2 className="h-5 w-5" />
+                </div>
+              )}
               <div>
-                <h2 className="font-display font-bold text-lg leading-none">GestRH</h2>
-                <p className="text-emerald-300 text-[10px] tracking-wider uppercase font-semibold mt-0.5">Sistema de RH</p>
+                <h2 className="font-display font-bold text-lg leading-none">
+                  {companyLayout?.identity?.displayName || 'GestRH'}
+                </h2>
+                <p className="text-emerald-300 text-[10px] tracking-wider uppercase font-semibold mt-0.5">
+                  Plataforma de RH
+                </p>
               </div>
             </div>
             <button className="md:hidden text-white" onClick={() => setIsSidebarOpen(false)}>
@@ -836,243 +882,292 @@ export default function AdminDashboard({
           </div>
 
           {/* Navigation Menu */}
-          <nav className="p-4 space-y-1.5 overflow-y-auto max-h-[calc(100vh-180px)]" id="admin-sidebar-menu">
-            {/* 1. Dashboard Tab */}
-            {(!currentUser || currentUser.role !== 'Funcionário') && (
-              <button
-                onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all ${activeTab === 'dashboard' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
-              >
-                <Sliders className="h-4 w-4" />
-                <span>Dashboard</span>
-              </button>
-            )}
-
-            {/* 2. Funcionários Tab */}
-            {(!currentUser || currentUser.role !== 'Funcionário') && releasedModules.includes('mod-1') && (
-              <button
-                onClick={() => { setActiveTab('funcionarios'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all ${activeTab === 'funcionarios' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
-              >
-                <Users className="h-4 w-4" />
-                <span>Funcionários</span>
-              </button>
-            )}
-
-            {/* 3. Ponto Eletrônico Tab */}
-            {releasedModules.includes('mod-6') && (
-              <button
-                onClick={() => { setActiveTab('ponto'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all ${activeTab === 'ponto' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
-              >
-                <Clock className="h-4 w-4" />
-                <span>{currentUser?.role === 'Funcionário' ? 'Meu Ponto' : 'Ponto Eletrônico'}</span>
-              </button>
-            )}
-
-            {/* 4. Folha de Pagamento Tab */}
-            {releasedModules.includes('mod-7') && (
-              <button
-                onClick={() => { setActiveTab('folha'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all ${activeTab === 'folha' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
-              >
-                <Wallet className="h-4 w-4" />
-                <span>{currentUser?.role === 'Funcionário' ? 'Meus Holerites' : 'Folha de Pagamento'}</span>
-              </button>
-            )}
-
-            {/* 5. Férias Tab */}
-            {releasedModules.includes('mod-1') && (
-              <button
-                onClick={() => { setActiveTab('ferias'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all ${activeTab === 'ferias' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
-              >
-                <Calendar className="h-4 w-4" />
-                <span>{currentUser?.role === 'Funcionário' ? 'Minhas Férias' : 'Férias'}</span>
-              </button>
-            )}
-
-            {/* 6. Documentos Tab */}
-            {releasedModules.includes('mod-1') && (
-              <button
-                onClick={() => { setActiveTab('documentos'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all ${activeTab === 'documentos' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
-              >
-                <FileText className="h-4 w-4" />
-                <span>{currentUser?.role === 'Funcionário' ? 'Meus Documentos' : 'Documentos'}</span>
-              </button>
-            )}
-
-            {/* --- NEW HR GESTÃO DE PESSOAS MODULES --- */}
-
-            {/* 7. Recrutamento e Seleção Tab */}
-            {(!currentUser || currentUser.role !== 'Funcionário') && releasedModules.includes('mod-2') && (
-              <button
-                onClick={() => { setActiveTab('recrutamento'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all ${activeTab === 'recrutamento' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
-              >
-                <Briefcase className="h-4 w-4 text-emerald-300" />
-                <span className="flex-1">Recrutamento & Seleção</span>
-              </button>
-            )}
-
-            {/* Entrevista Inteligente com IA Tab (Módulo 15) */}
-            {(!currentUser || currentUser.role !== 'Funcionário') && releasedModules.includes('mod-15') && (
-              <button
-                onClick={() => { setActiveTab('entrevistas-ia'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all ${activeTab === 'entrevistas-ia' ? 'bg-amber-500 text-slate-950 font-bold shadow-lg shadow-amber-500/20' : 'text-amber-300 hover:bg-emerald-600/50'}`}
-              >
-                <Sparkles className="h-4 w-4 text-amber-300 shrink-0" />
-                <span className="flex-1 font-bold">Entrevista Inteligente (IA)</span>
-                <span className="bg-amber-400 text-slate-950 font-black text-[9px] px-1.5 py-0.5 rounded uppercase font-mono shadow-sm">
-                  NOVO
-                </span>
-              </button>
-            )}
-
-            {/* 8. Banco de Talentos Tab */}
-            {(!currentUser || currentUser.role !== 'Funcionário') && releasedModules.includes('mod-3') && (
-              <button
-                onClick={() => { setActiveTab('banco-talentos'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all ${activeTab === 'banco-talentos' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
-              >
-                <Users className="h-4 w-4 text-emerald-300" />
-                <span className="flex-1">Banco de Talentos</span>
-              </button>
-            )}
-
-            {/* 9. Módulo Contratação Tab */}
-            {(!currentUser || currentUser.role !== 'Funcionário') && releasedModules.includes('mod-11') && (
-              <button
-                onClick={() => { setActiveTab('contratacao'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all ${activeTab === 'contratacao' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
-              >
-                <FileSignature className="h-4 w-4 text-emerald-300" />
-                <span className="flex-1">Contratação & Onboarding</span>
-              </button>
-            )}
-
-            {/* 10. Módulo Benefícios Tab */}
-            {(!currentUser || currentUser.role !== 'Funcionário') && releasedModules.includes('mod-9') && (
-              <button
-                onClick={() => { setActiveTab('beneficios'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all ${activeTab === 'beneficios' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
-              >
-                <Heart className="h-4 w-4 text-emerald-300" />
-                <span className="flex-1">Gestão de Benefícios</span>
-              </button>
-            )}
-
-            {/* 11. Módulo Rescisão Tab */}
-            {(!currentUser || currentUser.role !== 'Funcionário') && releasedModules.includes('mod-12') && (
-              <button
-                onClick={() => { setActiveTab('rescisao'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all ${activeTab === 'rescisao' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
-              >
-                <UserMinus className="h-4 w-4 text-emerald-300" />
-                <span className="flex-1">Rescisões & Offboarding</span>
-              </button>
-            )}
-
-            {/* Aprovações & Horas Extras Tab */}
-            {(!currentUser || currentUser.role !== 'Funcionário' || (currentUser.role as string) === 'Coordenador') && currentUser?.role !== 'Consultor RH' && (currentUser?.role as string) !== 'Consultor de RH' && releasedModules.includes('mod-6') && (
-              <button
-                onClick={() => { setActiveTab('aprovacoes'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all ${activeTab === 'aprovacoes' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
-              >
-                <CheckCircle2 className="h-4 w-4 text-emerald-300" />
-                <span className="flex-1">Aprovações & Horas Extras</span>
-              </button>
-            )}
-
-            {/* 12. Assistente IA RH Tab */}
-            {(!currentUser || currentUser.role !== 'Funcionário') && releasedModules.includes('mod-13') && (
-              <button
-                onClick={() => { setActiveTab('chat-ia'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all ${activeTab === 'chat-ia' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
-              >
-                <Bot className="h-4 w-4 text-emerald-300" />
-                <span className="flex-1">Assistente IA RH</span>
-              </button>
-            )}
-
-            {/* Módulo Consultor de RH Multi-Tenant */}
-            {(!currentUser || currentUser.role !== 'Funcionário') && releasedModules.includes('mod-14') && (
-              <div className="space-y-1">
+          <nav className="p-4 space-y-3 overflow-y-auto max-h-[calc(100vh-180px)] text-xs font-semibold" id="admin-sidebar-menu">
+            
+            {/* 1. VISÃO GERAL */}
+            <div className="space-y-1">
+              {(!currentUser || currentUser.role !== 'Funcionário') && isMenuVisible('dashboard') && (
                 <button
-                  onClick={() => { setActiveTab('consultor-rh'); setIsSidebarOpen(false); }}
-                  className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all cursor-pointer ${activeTab === 'consultor-rh' ? 'bg-amber-500 text-slate-950 font-bold shadow-lg shadow-amber-500/20' : 'text-amber-300 hover:bg-emerald-600/50'}`}
+                  onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
+                  className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-left transition-all ${activeTab === 'dashboard' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
                 >
-                  <Sparkles className="h-4 w-4 text-slate-950 shrink-0" />
-                  <span className="flex-1 font-bold">Consultor de RH</span>
-                  <span className="bg-amber-400 text-slate-950 font-black text-[9px] px-1.5 py-0.5 rounded uppercase font-mono">
-                    SaaS
-                  </span>
-                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${activeTab === 'consultor-rh' ? 'rotate-180' : ''}`} />
+                  <Sliders className="h-4 w-4 shrink-0" />
+                  <span>{getCustomMenuLabel('dashboard', 'Dashboard Principal')}</span>
+                </button>
+              )}
+            </div>
+
+            {/* 2. GESTÃO DE PESSOAS */}
+            {(!currentUser || currentUser.role !== 'Funcionário') && (
+              <div className="space-y-1 pt-2 border-t border-emerald-700/50">
+                <div className="px-3 text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider mb-1">
+                  👥 Gestão de Pessoas
+                </div>
+
+                {releasedModules.includes('mod-1') && isMenuVisible('funcionarios') && (
+                  <button
+                    onClick={() => { setActiveTab('funcionarios'); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'funcionarios' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                  >
+                    <Users className="h-4 w-4 shrink-0" />
+                    <span>{getCustomMenuLabel('funcionarios', 'Funcionários')}</span>
+                  </button>
+                )}
+
+                {releasedModules.includes('mod-11') && (
+                  <button
+                    onClick={() => { setActiveTab('contratacao'); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'contratacao' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                  >
+                    <FileSignature className="h-4 w-4 shrink-0 text-emerald-300" />
+                    <span className="flex-1">Contratação & Onboarding</span>
+                  </button>
+                )}
+
+                {releasedModules.includes('mod-12') && (
+                  <button
+                    onClick={() => { setActiveTab('rescisao'); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'rescisao' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                  >
+                    <UserMinus className="h-4 w-4 shrink-0 text-emerald-300" />
+                    <span className="flex-1">Rescisões & Offboarding</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* 3. RECRUTAMENTO E SELEÇÃO */}
+            {(!currentUser || currentUser.role !== 'Funcionário') && (releasedModules.includes('mod-2') || releasedModules.includes('mod-3') || releasedModules.includes('mod-15')) && (
+              <div className="space-y-1 pt-2 border-t border-emerald-700/50">
+                <div className="px-3 text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider mb-1">
+                  🎯 Recrutamento e Seleção
+                </div>
+
+                {releasedModules.includes('mod-2') && (
+                  <>
+                    <button
+                      onClick={() => { setActiveTab('vagas'); setIsSidebarOpen(false); }}
+                      className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'vagas' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                    >
+                      <Briefcase className="h-4 w-4 shrink-0 text-emerald-300" />
+                      <span className="flex-1">Vagas de Emprego</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTab('triagem'); setIsSidebarOpen(false); }}
+                      className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'triagem' || activeTab === 'recrutamento' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                    >
+                      <Filter className="h-4 w-4 shrink-0 text-emerald-300" />
+                      <span className="flex-1">Triagem & Pipeline</span>
+                    </button>
+                  </>
+                )}
+
+                {releasedModules.includes('mod-15') && (
+                  <button
+                    onClick={() => { setActiveTab('entrevistas-ia'); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'entrevistas-ia' ? 'bg-amber-500 text-slate-950 font-bold shadow-lg shadow-amber-500/20' : 'text-amber-300 hover:bg-emerald-600/50'}`}
+                  >
+                    <Sparkles className="h-4 w-4 shrink-0 text-amber-300" />
+                    <span className="flex-1 font-bold">Entrevista Inteligente (IA)</span>
+                    <span className="bg-amber-400 text-slate-950 font-black text-[9px] px-1.5 py-0.5 rounded uppercase font-mono shadow-xs">
+                      NOVO
+                    </span>
+                  </button>
+                )}
+
+                {releasedModules.includes('mod-3') && (
+                  <button
+                    onClick={() => { setActiveTab('banco-talentos'); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'banco-talentos' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                  >
+                    <Users className="h-4 w-4 shrink-0 text-emerald-300" />
+                    <span className="flex-1">Banco de Talentos</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* 4. JORNADA E PONTO */}
+            {releasedModules.includes('mod-6') && (
+              <div className="space-y-1 pt-2 border-t border-emerald-700/50">
+                <div className="px-3 text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider mb-1">
+                  ⏰ Jornada e Ponto
+                </div>
+
+                <button
+                  onClick={() => { setActiveTab('ponto'); setIsSidebarOpen(false); }}
+                  className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'ponto' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                >
+                  <Clock className="h-4 w-4 shrink-0" />
+                  <span>{currentUser?.role === 'Funcionário' ? 'Meu Ponto' : 'Ponto Eletrônico'}</span>
                 </button>
 
-                {/* Nested Sub-options directly inside main sidebar */}
-                {activeTab === 'consultor-rh' && (
-                  <div className="pl-3 pr-1 py-1 space-y-0.5 border-l-2 border-amber-400/60 ml-4 my-1">
-                    {[
-                      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-                      { id: 'clientes', label: 'Clientes', icon: Building2 },
-                      { id: 'vagas', label: 'Vagas', icon: Briefcase },
-                      { id: 'banco', label: 'Banco de Talentos', icon: Users },
-                      { id: 'pipeline', label: 'Pipeline Kanban', icon: UserCheck },
-                      { id: 'entrevistas', label: 'Entrevistas', icon: Calendar },
-                      { id: 'crm', label: 'CRM Comercial', icon: TrendingUp },
-                      { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
-                      { id: 'relatorios', label: 'Relatórios', icon: FileText },
-                      { id: 'ia', label: 'Consultor IA', icon: Sparkles }
-                    ].map((subItem) => {
-                      const IconComponent = subItem.icon;
-                      const isSubActive = consultorSubTab === subItem.id;
-                      return (
-                        <button
-                          key={subItem.id}
-                          onClick={() => {
-                            setActiveTab('consultor-rh');
-                            setConsultorSubTab(subItem.id);
-                            setIsSidebarOpen(false);
-                          }}
-                          className={`w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-lg text-left text-[11px] font-semibold transition-all cursor-pointer ${
-                            isSubActive
-                              ? 'bg-amber-400 text-slate-950 font-bold shadow-xs'
-                              : 'text-emerald-100 hover:bg-emerald-600/50 hover:text-white'
-                          }`}
-                        >
-                          <IconComponent className={`h-3.5 w-3.5 shrink-0 ${isSubActive ? 'text-slate-950' : 'text-amber-300'}`} />
-                          <span className="truncate">{subItem.label}</span>
-                        </button>
-                      );
-                    })}
+                {(!currentUser || currentUser.role !== 'Funcionário' || (currentUser.role as string) === 'Coordenador') && currentUser?.role !== 'Consultor RH' && (currentUser?.role as string) !== 'Consultor de RH' && (
+                  <button
+                    onClick={() => { setActiveTab('aprovacoes'); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'aprovacoes' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                  >
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
+                    <span className="flex-1">Aprovações & Horas Extras</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* 5. FOLHA DE PAGAMENTO & BENEFÍCIOS */}
+            {(releasedModules.includes('mod-7') || releasedModules.includes('mod-9')) && (
+              <div className="space-y-1 pt-2 border-t border-emerald-700/50">
+                <div className="px-3 text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider mb-1">
+                  💰 Folha e Benefícios
+                </div>
+
+                {releasedModules.includes('mod-7') && (
+                  <button
+                    onClick={() => { setActiveTab('folha'); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'folha' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                  >
+                    <Wallet className="h-4 w-4 shrink-0" />
+                    <span>{currentUser?.role === 'Funcionário' ? 'Meus Holerites' : 'Folha de Pagamento'}</span>
+                  </button>
+                )}
+
+                {(!currentUser || currentUser.role !== 'Funcionário') && releasedModules.includes('mod-9') && (
+                  <button
+                    onClick={() => { setActiveTab('beneficios'); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'beneficios' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                  >
+                    <Heart className="h-4 w-4 shrink-0 text-emerald-300" />
+                    <span className="flex-1">Gestão de Benefícios</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* 6. FÉRIAS E DOCUMENTOS */}
+            {releasedModules.includes('mod-1') && (
+              <div className="space-y-1 pt-2 border-t border-emerald-700/50">
+                <div className="px-3 text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider mb-1">
+                  🏖 Férias e Documentos
+                </div>
+
+                <button
+                  onClick={() => { setActiveTab('ferias'); setIsSidebarOpen(false); }}
+                  className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'ferias' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                >
+                  <Calendar className="h-4 w-4 shrink-0" />
+                  <span>{currentUser?.role === 'Funcionário' ? 'Minhas Férias' : 'Solicitações de Férias'}</span>
+                </button>
+
+                <button
+                  onClick={() => { setActiveTab('documentos'); setIsSidebarOpen(false); }}
+                  className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'documentos' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                >
+                  <FileText className="h-4 w-4 shrink-0" />
+                  <span>{currentUser?.role === 'Funcionário' ? 'Meus Documentos' : 'Documentos do RH'}</span>
+                </button>
+              </div>
+            )}
+
+            {/* 7. RELATÓRIOS & CONSULTORIA */}
+            {(!currentUser || currentUser.role !== 'Funcionário') && (releasedModules.includes('mod-10') || releasedModules.includes('mod-13') || releasedModules.includes('mod-14')) && (
+              <div className="space-y-1 pt-2 border-t border-emerald-700/50">
+                <div className="px-3 text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider mb-1">
+                  📊 Relatórios e Inteligência
+                </div>
+
+                {releasedModules.includes('mod-10') && (
+                  <button
+                    onClick={() => { setActiveTab('relatorios'); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'relatorios' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                  >
+                    <TrendingUp className="h-4 w-4 shrink-0" />
+                    <span>Central de Relatórios</span>
+                  </button>
+                )}
+
+                {releasedModules.includes('mod-13') && (
+                  <button
+                    onClick={() => { setActiveTab('chat-ia'); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'chat-ia' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                  >
+                    <Bot className="h-4 w-4 shrink-0 text-emerald-300" />
+                    <span className="flex-1">Assistente IA RH</span>
+                  </button>
+                )}
+
+                {releasedModules.includes('mod-14') && (
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => { setActiveTab('consultor-rh'); setIsSidebarOpen(false); }}
+                      className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all cursor-pointer ${activeTab === 'consultor-rh' ? 'bg-amber-500 text-slate-950 font-bold shadow-lg shadow-amber-500/20' : 'text-amber-300 hover:bg-emerald-600/50'}`}
+                    >
+                      <Sparkles className="h-4 w-4 text-slate-950 shrink-0" />
+                      <span className="flex-1 font-bold">Consultor de RH</span>
+                      <span className="bg-amber-400 text-slate-950 font-black text-[9px] px-1.5 py-0.5 rounded uppercase font-mono">
+                        SaaS
+                      </span>
+                      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${activeTab === 'consultor-rh' ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {activeTab === 'consultor-rh' && (
+                      <div className="pl-3 pr-1 py-1 space-y-0.5 border-l-2 border-amber-400/60 ml-4 my-1">
+                        {[
+                          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+                          { id: 'clientes', label: 'Clientes', icon: Building2 },
+                          { id: 'vagas', label: 'Vagas', icon: Briefcase },
+                          { id: 'banco', label: 'Banco de Talentos', icon: Users },
+                          { id: 'pipeline', label: 'Pipeline Kanban', icon: UserCheck },
+                          { id: 'entrevistas', label: 'Entrevistas', icon: Calendar },
+                          { id: 'crm', label: 'CRM Comercial', icon: TrendingUp },
+                          { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
+                          { id: 'relatorios', label: 'Relatórios', icon: FileText },
+                          { id: 'ia', label: 'Consultor IA', icon: Sparkles }
+                        ].map((subItem) => {
+                          const IconComponent = subItem.icon;
+                          const isSubActive = consultorSubTab === subItem.id;
+                          return (
+                            <button
+                              key={subItem.id}
+                              onClick={() => {
+                                setActiveTab('consultor-rh');
+                                setConsultorSubTab(subItem.id);
+                                setIsSidebarOpen(false);
+                              }}
+                              className={`w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-lg text-left text-[11px] font-semibold transition-all cursor-pointer ${
+                                isSubActive
+                                  ? 'bg-amber-400 text-slate-950 font-bold shadow-xs'
+                                  : 'text-emerald-100 hover:bg-emerald-600/50 hover:text-white'
+                              }`}
+                            >
+                              <IconComponent className={`h-3.5 w-3.5 shrink-0 ${isSubActive ? 'text-slate-950' : 'text-amber-300'}`} />
+                              <span className="truncate">{subItem.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )}
 
-            {/* 13. Relatórios Tab */}
-            {(!currentUser || currentUser.role !== 'Funcionário') && releasedModules.includes('mod-10') && (
-              <button
-                onClick={() => { setActiveTab('relatorios'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all ${activeTab === 'relatorios' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
-              >
-                <TrendingUp className="h-4 w-4" />
-                <span>Relatórios</span>
-              </button>
+            {/* 8. CONFIGURAÇÕES */}
+            {(!currentUser || (currentUser.role !== 'Funcionário' && currentUser.role !== 'RH')) && (
+              <div className="space-y-1 pt-2 border-t border-emerald-700/50">
+                <div className="px-3 text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider mb-1">
+                  ⚙️ Sistema
+                </div>
+                <button
+                  onClick={() => { setActiveTab('configuracoes'); setIsSidebarOpen(false); }}
+                  className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'configuracoes' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                >
+                  <Settings className="h-4 w-4 shrink-0" />
+                  <span>Configurações & Tabelas</span>
+                </button>
+              </div>
             )}
 
-            {/* 14. Configurações Tab */}
-            {(!currentUser || (currentUser.role !== 'Funcionário' && currentUser.role !== 'RH')) && (
-              <button
-                onClick={() => { setActiveTab('configuracoes'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold transition-all ${activeTab === 'configuracoes' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
-              >
-                <Settings className="h-4 w-4" />
-                <span>Configurações</span>
-              </button>
-            )}
           </nav>
         </div>
 
@@ -1089,6 +1184,17 @@ export default function AdminDashboard({
               </p>
             </div>
           </div>
+
+          {currentUser?.role !== 'Funcionário' && (
+            <button 
+              onClick={() => setIsLayoutRequestModalOpen(true)}
+              className="w-full mb-2 flex items-center justify-center space-x-2 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 text-[11px] font-extrabold py-2 rounded-xl transition-all cursor-pointer shadow-xs"
+              title="Solicitar alteração de layout ou menus ao Master"
+            >
+              <Palette className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+              <span>Personalizar Layout</span>
+            </button>
+          )}
 
           <button 
             id="btn-voltar-ao-portal"
@@ -2283,9 +2389,22 @@ export default function AdminDashboard({
           />
         )}
 
-        {/* --- 9. RECRUTAMENTO E SELEÇÃO --- */}
-        {activeTab === 'recrutamento' && (
+        {/* --- 9. RECRUTAMENTO E SELEÇÃO - VAGAS --- */}
+        {activeTab === 'vagas' && (
           <RecruitmentModule 
+            initialTab="vagas"
+            jobs={jobs}
+            candidates={candidates}
+            onUpdateJobs={onUpdateJobs}
+            onUpdateCandidates={onUpdateCandidates}
+            triggerToast={triggerToast}
+          />
+        )}
+
+        {/* --- 9. RECRUTAMENTO E SELEÇÃO - TRIAGEM & PIPELINE --- */}
+        {(activeTab === 'triagem' || activeTab === 'recrutamento') && (
+          <RecruitmentModule 
+            initialTab="triagem"
             jobs={jobs}
             candidates={candidates}
             onUpdateJobs={onUpdateJobs}
@@ -2826,6 +2945,55 @@ export default function AdminDashboard({
           onSubmitPointCorrection={(req) => onUpdatePointCorrections([...pointCorrections, req])}
           triggerToast={triggerToast}
         />
+      )}
+
+      {/* 6. Layout Request Modal for Client Admin */}
+      {isLayoutRequestModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <form onSubmit={handleSendLayoutRequest} className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-6 space-y-4 text-white shadow-2xl animate-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="font-extrabold text-base flex items-center space-x-2">
+                <Palette className="h-5 w-5 text-amber-400" />
+                <span>Solicitar Alteração de Layout ao Master</span>
+              </h3>
+              <button type="button" onClick={() => setIsLayoutRequestModalOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              Descreva as alterações desejadas em menus, logo, cores ou widgets. A equipe Master será notificada e aplicará as modificações para a sua empresa.
+            </p>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1">Descrição da Solicitação *</label>
+              <textarea
+                required
+                rows={4}
+                placeholder="Ex: Gostariamos de alterar o nome do menu Funcionários para Colaboradores e alterar a cor principal para azul..."
+                value={layoutRequestText}
+                onChange={e => setLayoutRequestText(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-amber-500"
+              ></textarea>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsLayoutRequestModalOpen(false)}
+                className="bg-slate-800 text-slate-300 font-bold text-xs px-4 py-2.5 rounded-xl hover:bg-slate-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 cursor-pointer"
+              >
+                Enviar Solicitação
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
     </div>

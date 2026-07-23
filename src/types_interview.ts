@@ -114,6 +114,13 @@ export interface SmartInterview {
   hasAudioRecording: boolean;
   hasVideoRecording: boolean;
   recordingUrl?: string;
+  videoUrl?: string;
+  audioRecrutadorUrl?: string;
+  audioCandidatoUrl?: string;
+  transcriptTxtUrl?: string;
+  recordingConsentGranted?: boolean;
+  recordingConsentDate?: string;
+  recruiterRole?: string;
   notesHistory?: string[];
   uploadedFiles: InterviewFile[];
 

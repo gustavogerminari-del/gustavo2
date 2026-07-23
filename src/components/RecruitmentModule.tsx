@@ -44,11 +44,34 @@ import {
   ArrowLeft,
   CheckCircle2,
   XCircle,
+  AlertCircle,
   GripVertical,
   TrendingUp,
   Maximize2,
   Minimize2,
-  Layers
+  Layers,
+  Video,
+  Calendar,
+  Shield,
+  Bookmark,
+  Play,
+  Heart,
+  ThumbsUp,
+  ThumbsDown,
+  SlidersHorizontal,
+  CheckSquare,
+  MessageCircle,
+  MoreVertical,
+  Paperclip,
+  ChevronDown,
+  BriefcaseIcon,
+  HelpCircle,
+  Info,
+  ArrowUp,
+  ArrowDown,
+  EyeOff,
+  Palette,
+  Settings
 } from 'lucide-react';
 import { Job, Candidate } from '../types';
 import PublicJobPage from './PublicJobPage';
@@ -62,18 +85,68 @@ interface RecruitmentModuleProps {
   onUpdateJobs: (jobs: Job[]) => void;
   onUpdateCandidates: (candidates: Candidate[]) => void;
   triggerToast: (msg: string) => void;
-  initialTab?: 'kanban' | 'curriculos' | 'vagas' | 'entrevistas';
+  initialTab?: 'curriculos' | 'vagas' | 'triagem' | 'entrevistas';
 }
 
-const KANBAN_STAGES = [
-  { id: 'Novo', label: 'Novos / Recebidos', color: 'border-blue-200/90 bg-blue-50/40 text-blue-900', badge: 'bg-blue-100 text-blue-800', barColor: 'bg-blue-500', headerBg: 'bg-blue-500/10 text-blue-700' },
-  { id: 'Triagem', label: 'Em Triagem', color: 'border-amber-200/90 bg-amber-50/40 text-amber-900', badge: 'bg-amber-100 text-amber-800', barColor: 'bg-amber-500', headerBg: 'bg-amber-500/10 text-amber-700' },
-  { id: 'Entrevista RH', label: 'Entrevista RH', color: 'border-purple-200/90 bg-purple-50/40 text-purple-900', badge: 'bg-purple-100 text-purple-800', barColor: 'bg-purple-500', headerBg: 'bg-purple-500/10 text-purple-700' },
-  { id: 'Entrevista Técnica', label: 'Entrevista Técnica', color: 'border-indigo-200/90 bg-indigo-50/40 text-indigo-900', badge: 'bg-indigo-100 text-indigo-800', barColor: 'bg-indigo-500', headerBg: 'bg-indigo-500/10 text-indigo-700' },
-  { id: 'Proposta', label: 'Proposta / Oferta', color: 'border-cyan-200/90 bg-cyan-50/40 text-cyan-900', badge: 'bg-cyan-100 text-cyan-800', barColor: 'bg-cyan-500', headerBg: 'bg-cyan-500/10 text-cyan-700' },
-  { id: 'Aprovado', label: 'Aprovados', color: 'border-emerald-200/90 bg-emerald-50/40 text-emerald-900', badge: 'bg-emerald-100 text-emerald-800', barColor: 'bg-emerald-500', headerBg: 'bg-emerald-500/10 text-emerald-700' },
-  { id: 'Reprovado', label: 'Reprovados / Banco', color: 'border-rose-200/90 bg-rose-50/40 text-rose-900', badge: 'bg-rose-100 text-rose-800', barColor: 'bg-rose-500', headerBg: 'bg-rose-500/10 text-rose-700' }
+export interface KanbanStage {
+  id: string;
+  label: string;
+  color: string;
+  badge: string;
+  barColor: string;
+  headerBg: string;
+  isDefault?: boolean;
+  hidden?: boolean;
+  whenRule?: string;
+}
+
+export const COLOR_THEMES: Record<string, { label: string, color: string, badge: string, barColor: string, headerBg: string }> = {
+  slate: { label: 'Cinza (Geral)', color: 'border-slate-200 bg-slate-50 text-slate-800', badge: 'bg-slate-200 text-slate-800 font-bold', barColor: 'bg-slate-500', headerBg: 'bg-slate-100 text-slate-700' },
+  blue: { label: 'Azul (Triagem)', color: 'border-blue-200 bg-blue-50/60 text-blue-900', badge: 'bg-blue-100 text-blue-900 font-bold', barColor: 'bg-blue-600', headerBg: 'bg-blue-500/10 text-blue-800' },
+  amber: { label: 'Âmbar (Alerta / IA)', color: 'border-amber-200 bg-amber-50/60 text-amber-900', badge: 'bg-amber-100 text-amber-900 font-bold', barColor: 'bg-amber-500', headerBg: 'bg-amber-500/10 text-amber-800' },
+  purple: { label: 'Roxo (Entrevista)', color: 'border-purple-200 bg-purple-50/60 text-purple-900', badge: 'bg-purple-100 text-purple-900 font-bold', barColor: 'bg-purple-600', headerBg: 'bg-purple-500/10 text-purple-800' },
+  indigo: { label: 'Índigo (Técnico)', color: 'border-indigo-200 bg-indigo-50/60 text-indigo-900', badge: 'bg-indigo-100 text-indigo-900 font-bold', barColor: 'bg-indigo-600', headerBg: 'bg-indigo-500/10 text-indigo-800' },
+  cyan: { label: 'Ciano (Avaliação)', color: 'border-cyan-200 bg-cyan-50/60 text-cyan-900', badge: 'bg-cyan-100 text-cyan-900 font-bold', barColor: 'bg-cyan-600', headerBg: 'bg-cyan-500/10 text-cyan-800' },
+  teal: { label: 'Teal (Proposta)', color: 'border-teal-200 bg-teal-50/60 text-teal-900', badge: 'bg-teal-100 text-teal-900 font-bold', barColor: 'bg-teal-600', headerBg: 'bg-teal-500/10 text-teal-800' },
+  emerald: { label: 'Esmeralda (Contratação)', color: 'border-emerald-200 bg-emerald-50/60 text-emerald-900', badge: 'bg-emerald-100 text-emerald-900 font-bold', barColor: 'bg-emerald-600', headerBg: 'bg-emerald-500/10 text-emerald-800' },
+  rose: { label: 'Rosa (Reprovados)', color: 'border-rose-200 bg-rose-50/60 text-rose-900', badge: 'bg-rose-100 text-rose-900 font-bold', barColor: 'bg-rose-600', headerBg: 'bg-rose-500/10 text-rose-800' },
+  orange: { label: 'Laranja (Pendente)', color: 'border-orange-200 bg-orange-50/60 text-orange-900', badge: 'bg-orange-100 text-orange-900 font-bold', barColor: 'bg-orange-600', headerBg: 'bg-orange-500/10 text-orange-800' }
+};
+
+export const DEFAULT_KANBAN_STAGES: KanbanStage[] = [
+  { id: 'Recebidos', label: 'Recebidos', color: 'border-slate-200 bg-slate-50 text-slate-800', badge: 'bg-slate-200 text-slate-800', barColor: 'bg-slate-500', headerBg: 'bg-slate-100 text-slate-700', isDefault: true, whenRule: 'Candidato inscrito no portal de vagas ou cadastrado manualmente pelo recrutador.' },
+  { id: 'Triagem IA', label: 'Triagem IA', color: 'border-amber-200 bg-amber-50/60 text-amber-900', badge: 'bg-amber-100 text-amber-900 font-bold', barColor: 'bg-amber-500', headerBg: 'bg-amber-500/10 text-amber-800', isDefault: true, whenRule: 'Currículo submetido para análise automatizada de perfil e compatibilidade por IA.' },
+  { id: 'Triagem RH', label: 'Triagem RH', color: 'border-blue-200 bg-blue-50/60 text-blue-900', badge: 'bg-blue-100 text-blue-900 font-bold', barColor: 'bg-blue-600', headerBg: 'bg-blue-500/10 text-blue-800', isDefault: true, whenRule: 'Validação prévia de requisitos da vaga e pretensão salarial pelo time de RH.' },
+  { id: 'Entrevista RH', label: 'Entrevista RH', color: 'border-purple-200 bg-purple-50/60 text-purple-900', badge: 'bg-purple-100 text-purple-900 font-bold', barColor: 'bg-purple-600', headerBg: 'bg-purple-500/10 text-purple-800', isDefault: true, whenRule: 'Agendamento de entrevista inicial comportamental e alinhamento de valores com o RH.' },
+  { id: 'Entrevista Técnica', label: 'Entrevista Técnica', color: 'border-indigo-200 bg-indigo-50/60 text-indigo-900', badge: 'bg-indigo-100 text-indigo-900 font-bold', barColor: 'bg-indigo-600', headerBg: 'bg-indigo-500/10 text-indigo-800', isDefault: true, whenRule: 'Avaliação técnica aprofundada com o líder direto ou gestor da área.' },
+  { id: 'Teste', label: 'Teste', color: 'border-cyan-200 bg-cyan-50/60 text-cyan-900', badge: 'bg-cyan-100 text-cyan-900 font-bold', barColor: 'bg-cyan-600', headerBg: 'bg-cyan-500/10 text-cyan-800', isDefault: true, whenRule: 'Envio ou apresentação de desafio prático, case de negócios ou teste prático.' },
+  { id: 'Proposta', label: 'Proposta', color: 'border-teal-200 bg-teal-50/60 text-teal-900', badge: 'bg-teal-100 text-teal-900 font-bold', barColor: 'bg-teal-600', headerBg: 'bg-teal-500/10 text-teal-800', isDefault: true, whenRule: 'Apresentação formal da proposta salarial e negociação de benefícios.' },
+  { id: 'Contratação', label: 'Contratação', color: 'border-emerald-200 bg-emerald-50/60 text-emerald-900', badge: 'bg-emerald-100 text-emerald-900 font-bold', barColor: 'bg-emerald-600', headerBg: 'bg-emerald-500/10 text-emerald-800', isDefault: true, whenRule: 'Proposta aceita, solicitação de documentação para admissão e onboarding.' },
+  { id: 'Banco de Talentos', label: 'Banco de Talentos', color: 'border-purple-300 bg-purple-50/80 text-purple-950', badge: 'bg-purple-200 text-purple-900 font-bold', barColor: 'bg-purple-700', headerBg: 'bg-purple-500/20 text-purple-900', isDefault: true, whenRule: 'Candidato com alto potencial guardado para oportunidades futuras.' },
+  { id: 'Reprovados', label: 'Reprovados', color: 'border-rose-200 bg-rose-50/60 text-rose-900', badge: 'bg-rose-100 text-rose-900 font-bold', barColor: 'bg-rose-600', headerBg: 'bg-rose-500/10 text-rose-800', isDefault: true, whenRule: 'Candidato desclassificado no processo seletivo atual.' }
 ];
+
+export const KANBAN_STAGES = DEFAULT_KANBAN_STAGES;
+
+export function getCandidateStage(candidate: Candidate, stagesList?: KanbanStage[]): string {
+  const st = (candidate.status || 'Recebidos').trim();
+  const list = stagesList || DEFAULT_KANBAN_STAGES;
+  const match = list.find(s => s.id === st || s.label.toLowerCase() === st.toLowerCase());
+  if (match) return match.id;
+
+  if (st === 'Novo' || st === 'Novos' || st === 'Recebidos' || st === 'Recebido') return 'Recebidos';
+  if (st === 'Triagem IA' || st === 'IA') return 'Triagem IA';
+  if (st === 'Triagem RH' || st === 'Triagem' || st === 'Em Triagem') return 'Triagem RH';
+  if (st === 'Entrevista RH' || st === 'Entrevista') return 'Entrevista RH';
+  if (st === 'Entrevista Técnica' || st === 'Técnica') return 'Entrevista Técnica';
+  if (st === 'Teste' || st === 'Testes') return 'Teste';
+  if (st === 'Proposta' || st === 'Oferta') return 'Proposta';
+  if (st === 'Contratação' || st === 'Contratado' || st === 'Aprovado' || st === 'Aprovados') return 'Contratação';
+  if (st === 'Banco de Talentos' || st === 'Banco') return 'Banco de Talentos';
+  if (st === 'Reprovado' || st === 'Reprovados' || st === 'Descartado') return 'Reprovados';
+
+  return list[0]?.id || 'Recebidos';
+}
 
 export default function RecruitmentModule({
   jobs,
@@ -83,60 +156,148 @@ export default function RecruitmentModule({
   triggerToast,
   initialTab
 }: RecruitmentModuleProps) {
-  // Navigation Tabs: 'kanban' | 'curriculos' | 'vagas' | 'entrevistas'
-  const [activeTab, setActiveTab] = useState<'kanban' | 'curriculos' | 'vagas' | 'entrevistas'>(initialTab || 'kanban');
+
+  // Active Sub-Tab State ('vagas' | 'triagem' | 'entrevistas')
+  const [subTab, setSubTab] = useState<'vagas' | 'triagem' | 'entrevistas'>(() => {
+    if (initialTab === 'vagas') return 'vagas';
+    if (initialTab === 'entrevistas') return 'entrevistas';
+    return 'triagem';
+  });
+
+  React.useEffect(() => {
+    if (initialTab === 'vagas') setSubTab('vagas');
+    else if (initialTab === 'entrevistas') setSubTab('entrevistas');
+    else if ((initialTab as string) === 'triagem' || initialTab === 'curriculos') setSubTab('triagem');
+  }, [initialTab]);
 
   // Selected & Modal States
   const [selectedJob, setSelectedJob] = useState<Job | null>(jobs[0] || null);
   const [viewingPublicJob, setViewingPublicJob] = useState<Job | null>(null);
   const [isNewJobOpen, setIsNewJobOpen] = useState(false);
+  const [isAddCandidateOpen, setIsAddCandidateOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [analyticsModalJob, setAnalyticsModalJob] = useState<Job | null>(null);
   const [shareModalJob, setShareModalJob] = useState<Job | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Modal for Viewing Candidates received for a specific job
-  const [selectedJobForCandidates, setSelectedJobForCandidates] = useState<Job | null>(null);
-  const [jobModalSearch, setJobModalSearch] = useState('');
-  const [jobModalStageFilter, setJobModalStageFilter] = useState('Todos');
+  // Active view overlay mode for SmartInterview / GestRH Meeting
+  const [meetingCandidate, setMeetingCandidate] = useState<Candidate | null>(null);
+  const [showSmartInterviewModule, setShowSmartInterviewModule] = useState(false);
 
-  const [isAnalyzing, setIsAnalyzing] = useState<string | null>(null);
-  const [isGeneratingJob, setIsGeneratingJob] = useState(false);
+  // Confirm Modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    isDanger?: boolean;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirmar',
+    isDanger: true,
+    onConfirm: () => {}
+  });
 
-  // Candidate Detail Modal state
-  const [selectedCandidateDetail, setSelectedCandidateDetail] = useState<Candidate | null>(null);
-  const [candidateNoteInput, setCandidateNoteInput] = useState('');
+  // Candidate Drawer state
+  const [drawerCandidate, setDrawerCandidate] = useState<Candidate | null>(null);
+  const [drawerTab, setDrawerTab] = useState<'resumo' | 'triagem' | 'acoes' | 'ia' | 'curriculo' | 'portfolio' | 'experiencias' | 'entrevistas' | 'anotacoes'>('resumo');
 
-  // New Candidate Manual Entry Modal state
-  const [isAddCandidateOpen, setIsAddCandidateOpen] = useState(false);
-  const [newCandName, setNewCandName] = useState('');
-  const [newCandEmail, setNewCandEmail] = useState('');
-  const [newCandPhone, setNewCandPhone] = useState('');
-  const [newCandCity, setNewCandCity] = useState('São Paulo');
-  const [newCandState, setNewCandState] = useState('SP');
-  const [newCandArea, setNewCandArea] = useState('TI');
-  const [newCandJobId, setNewCandJobId] = useState('');
-  const [newCandExperience, setNewCandExperience] = useState('');
-  const [newCandResumeText, setNewCandResumeText] = useState('');
-  const [newCandSalary, setNewCandSalary] = useState('');
-
-  // Filters state for Jobs
-  const [search, setSearch] = useState('');
-  const [deptFilter, setDeptFilter] = useState('Todos');
-  const [statusFilter, setStatusFilter] = useState('Todos');
-
-  // Filters state for Candidates / Kanban
-  const [kanbanJobFilter, setKanbanJobFilter] = useState('Todas');
-  const [kanbanSearch, setKanbanSearch] = useState('');
-  const [candSearch, setCandSearch] = useState('');
-  const [candJobFilter, setCandJobFilter] = useState('Todos');
-  const [candStatusFilter, setCandStatusFilter] = useState('Todos');
-
-  // Modern Drag and Drop & View Mode state for Kanban
+  // Drag and Drop & View Mode state for Kanban
   const [draggedCandidateId, setDraggedCandidateId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
   const [kanbanViewMode, setKanbanViewMode] = useState<'board' | 'compact'>('board');
+
+  // Dynamic Kanban Stages State
+  const [kanbanStages, setKanbanStages] = useState<KanbanStage[]>(() => {
+    try {
+      const saved = localStorage.getItem('gestrh_kanban_stages');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (err) {
+      console.error('Error loading kanban stages', err);
+    }
+    return DEFAULT_KANBAN_STAGES;
+  });
+
+  const visibleStages = useMemo(() => kanbanStages.filter(s => !s.hidden), [kanbanStages]);
+
+  const saveStages = (newStages: KanbanStage[]) => {
+    setKanbanStages(newStages);
+    try {
+      localStorage.setItem('gestrh_kanban_stages', JSON.stringify(newStages));
+    } catch (err) {
+      console.error('Error saving kanban stages', err);
+    }
+  };
+
+  // Column Modal States
+  const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
+  const [editingStage, setEditingStage] = useState<KanbanStage | null>(null);
+  const [columnName, setColumnName] = useState('');
+  const [columnColorKey, setColumnColorKey] = useState('blue');
+  const [columnWhenRule, setColumnWhenRule] = useState('');
+  const [insertAfterId, setInsertAfterId] = useState('end');
+
+  // Manage Columns Modal
+  const [isManageColumnsOpen, setIsManageColumnsOpen] = useState(false);
+
+  // Remove Column Confirmation Modal State
+  const [removeColumnModal, setRemoveColumnModal] = useState<{
+    isOpen: boolean;
+    stageToRemove: KanbanStage | null;
+    targetStageId: string;
+  }>({
+    isOpen: false,
+    stageToRemove: null,
+    targetStageId: 'Recebidos'
+  });
+
+  // Filter States
+  const [jobSearchQuery, setJobSearchQuery] = useState('');
+  const [jobStatusFilter, setJobStatusFilter] = useState<'Todas' | 'Ativas' | 'Encerradas'>('Todas');
+  const [jobDepartmentFilter, setJobDepartmentFilter] = useState<string>('Todos');
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterJobId, setFilterJobId] = useState<string>('Todas');
+  const [filterCity, setFilterCity] = useState<string>('Todas');
+  const [filterExp, setFilterExp] = useState<string>('Todas');
+  const [filterEdu, setFilterEdu] = useState<string>('Todas');
+  const [filterWorkModel, setFilterWorkModel] = useState<string>('Todos');
+  const [filterSalary, setFilterSalary] = useState<string>('Todas');
+  const [filterMatchIA, setFilterMatchIA] = useState<string>('Todos');
+  const [filterDate, setFilterDate] = useState<string>('Todas');
+  const [filterOnlyFavorites, setFilterOnlyFavorites] = useState(false);
+
+  // Screening Form State (inside drawer)
+  const [screeningData, setScreeningData] = useState<{
+    generalRating: number;
+    iaCompatibility: number;
+    experienceLevel: 'Excelente' | 'Boa' | 'Regular' | 'Baixa';
+    educationLevel: 'Compatível' | 'Parcial' | 'Não Compatível';
+    techKnowledge: 'Excelente' | 'Bom' | 'Regular' | 'Baixo';
+    communicationLevel: 'Excelente' | 'Boa' | 'Regular' | 'Ruim';
+    availability: 'Imediata' | '15 dias' | '30 dias' | 'Outro';
+    expectedSalary: string;
+    rhComments: string;
+    privateNotes: string;
+  }>({
+    generalRating: 4,
+    iaCompatibility: 85,
+    experienceLevel: 'Boa',
+    educationLevel: 'Compatível',
+    techKnowledge: 'Bom',
+    communicationLevel: 'Boa',
+    availability: 'Imediata',
+    expectedSalary: 'R$ 8.000,00',
+    rhComments: '',
+    privateNotes: ''
+  });
 
   // Extended Job Form state
   const [jobTitle, setJobTitle] = useState('');
@@ -163,6 +324,39 @@ export default function RecruitmentModule({
   const [seoDescription, setSeoDescription] = useState('');
   const [seoKeywordsText, setSeoKeywordsText] = useState('');
 
+  // New Candidate Form State
+  const [newCandName, setNewCandName] = useState('');
+  const [newCandEmail, setNewCandEmail] = useState('');
+  const [newCandPhone, setNewCandPhone] = useState('');
+  const [newCandCity, setNewCandCity] = useState('São Paulo');
+  const [newCandState, setNewCandState] = useState('SP');
+  const [newCandArea, setNewCandArea] = useState('TI');
+  const [newCandExp, setNewCandExp] = useState('Sênior (5+ anos)');
+  const [newCandJobId, setNewCandJobId] = useState('');
+  const [newCandResumeText, setNewCandResumeText] = useState('');
+  const [newCandSalary, setNewCandSalary] = useState('R$ 8.000,00');
+
+  const [isAnalyzing, setIsAnalyzing] = useState<string | null>(null);
+
+  // Sync candidate screening data when drawer opens
+  const handleOpenCandidateDrawer = (cand: Candidate) => {
+    setDrawerCandidate(cand);
+    setDrawerTab('resumo');
+    setScreeningData({
+      generalRating: cand.screening?.generalRating || cand.rating || 4,
+      iaCompatibility: cand.screening?.iaCompatibility || cand.aiScore || 85,
+      experienceLevel: cand.screening?.experienceLevel || 'Boa',
+      educationLevel: cand.screening?.educationLevel || 'Compatível',
+      techKnowledge: cand.screening?.techKnowledge || 'Bom',
+      communicationLevel: cand.screening?.communicationLevel || 'Boa',
+      availability: cand.screening?.availability || 'Imediata',
+      expectedSalary: cand.screening?.expectedSalary || cand.salaryExpectation || cand.expectedSalary || 'R$ 8.000,00',
+      rhComments: cand.screening?.rhComments || cand.notes || '',
+      privateNotes: cand.screening?.privateNotes || ''
+    });
+  };
+
+  // Job Modal Handlers
   const openAddModal = () => {
     setEditingJob(null);
     setJobTitle('');
@@ -224,1756 +418,2287 @@ export default function RecruitmentModule({
   };
 
   const handleDeleteJob = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir esta vaga?')) {
-      const updated = jobs.filter(j => j.id !== id);
-      onUpdateJobs(updated);
-      if (selectedJob?.id === id) {
-        setSelectedJob(updated[0] || null);
-      }
-      triggerToast('✓ Vaga excluída com sucesso.');
-    }
-  };
-
-  const handleToggleCancelJob = (job: Job) => {
-    const isClosed = job.status === 'Encerrada' || job.status === 'Cancelada' || (!job.active && job.status !== 'Rascunho' && job.status !== 'Publicada');
-    if (isClosed) {
-      if (confirm(`Deseja reabrir a vaga "${job.title}" e ativá-la no portal público?`)) {
-        const updated = jobs.map(j => j.id === job.id ? { ...j, status: 'Publicada' as const, active: true, publishedToPortal: true } : j);
+    setConfirmModal({
+      isOpen: true,
+      title: 'Excluir Vaga',
+      message: 'Tem certeza que deseja excluir esta vaga permanentemente?',
+      confirmText: 'Sim, Excluir Vaga',
+      isDanger: true,
+      onConfirm: () => {
+        const updated = jobs.filter(j => j.id !== id);
         onUpdateJobs(updated);
-        triggerToast(`✓ Vaga "${job.title}" foi reaberta e ativada!`);
-      }
-    } else {
-      if (confirm(`Tem certeza que deseja cancelar/encerrar a vaga "${job.title}"?\n\nEla deixará de receber novas candidaturas públicas.`)) {
-        const updated = jobs.map(j => j.id === job.id ? { ...j, status: 'Encerrada' as const, active: false, publishedToPortal: false } : j);
-        onUpdateJobs(updated);
-        if (selectedJob?.id === job.id) {
-          setSelectedJob(null);
+        if (selectedJob?.id === id) {
+          setSelectedJob(updated[0] || null);
         }
-        triggerToast(`✓ Vaga "${job.title}" foi cancelada/encerrada.`);
+        triggerToast('✓ Vaga excluída com sucesso.');
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }
-    }
-  };
-
-  const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setBannerUrl(reader.result as string);
-        triggerToast('✓ Imagem de banner carregada!');
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // AI Generator & Optimizer
-  const handleAIGenerateJob = async () => {
-    if (!jobTitle) {
-      alert('Digite o título da vaga para que a IA possa otimizar os textos.');
-      return;
-    }
-    setIsGeneratingJob(true);
-    try {
-      const response = await fetch('/api/gemini/generate-job', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          title: jobTitle, 
-          department: jobDept, 
-          workModel: jobModel, 
-          type: jobType 
-        })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setJobDesc(data.description || '');
-        setJobReqsText((data.requirements || []).join('\n'));
-        setResponsibilitiesText((data.responsibilities || [
-          `Liderar o desenvolvimento e manutenção das soluções do departamento de ${jobDept}.`,
-          'Trabalhar alinhado às melhores práticas do mercado.',
-          'Garantir a qualidade técnica e performance do produto.'
-        ]).join('\n'));
-        setBenefitsText('Vale Refeição / Alimentação (R$ 40/dia)\nPlano de Saúde e Odontológico Bradesco\nAuxílio Home Office / Equipamento completo\nGympass e Seguro de Vida');
-        setSeoTitle(`${jobTitle} - Vaga ${jobModel} na ${companyName}`);
-        setSeoDescription(`Venha trabalhar como ${jobTitle} na ${companyName}! Vaga ${jobModel} em ${city}-${stateUF}. Salário ${jobSalary}. Inscreva-se já!`);
-        setSeoKeywordsText(`${jobTitle}, vaga ${jobDept}, ${jobModel}, emprego em ${city}, contratação ${jobType}`);
-        triggerToast('✓ Vaga, Benefícios e SEO otimizados com Inteligência Artificial!');
-      } else {
-        throw new Error(data.error);
-      }
-    } catch (error: any) {
-      console.error(error);
-      alert('Erro ao gerar com IA: ' + error.message);
-    } finally {
-      setIsGeneratingJob(false);
-    }
+    });
   };
 
   const handleSaveJob = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!jobTitle) {
-      alert('Por favor, preencha o título da vaga.');
-      return;
-    }
-
-    const descriptionToSave = jobDesc || `Vaga para ${jobTitle} em ${jobDept}. Atuação em modelo ${jobModel} e contrato ${jobType}.`;
-    const jobIdToUse = editingJob ? editingJob.id : `job-${Date.now()}`;
-    const slugToUse = editingJob?.slug || generateJobSlug(jobTitle, jobIdToUse);
-
-    const isPublic = jobStatus === 'Publicada';
-    const jobData: Job = {
-      id: jobIdToUse,
-      title: jobTitle,
-      role: jobTitle,
-      department: jobDept,
-      location: `${city} - ${stateUF}`,
-      type: jobType,
-      workModel: jobModel,
-      salaryRange: jobSalary || 'R$ 8.000,00',
-      description: descriptionToSave,
-      requirements: jobReqsText.split('\n').map(r => r.trim()).filter(Boolean),
-      active: isPublic,
-      status: jobStatus,
-      publishedToPortal: isPublic,
-      createdAt: editingJob ? editingJob.createdAt : new Date().toISOString().split('T')[0],
-      publishedAt: editingJob?.publishedAt || (isPublic ? new Date().toISOString().split('T')[0] : undefined),
-      companyName: companyName || 'TECHCORP INOVAÇÕES',
-      companyLogo: companyLogo || undefined,
-      bannerUrl: bannerUrl || getDefaultBanner(jobDept),
-      city: city,
-      state: stateUF,
-      responsibilities: responsibilitiesText.split('\n').map(r => r.trim()).filter(Boolean),
-      differentials: differentialsText.split('\n').map(r => r.trim()).filter(Boolean),
-      benefits: benefitsText.split('\n').map(r => r.trim()).filter(Boolean),
-      workHours: workHours || '44h semanais, Seg a Sex',
-      vacanciesCount: Number(vacanciesCount) || 1,
-      prazo: jobPrazo || '2026-08-30',
-      slug: slugToUse,
-      seoTitle: seoTitle || `${jobTitle} | ${companyName}`,
-      seoDescription: seoDescription || descriptionToSave.slice(0, 150),
-      seoKeywords: seoKeywordsText.split(',').map(k => k.trim()).filter(Boolean),
-      analytics: editingJob?.analytics || {
-        views: Math.floor(Math.random() * 45) + 12,
-        clicks: Math.floor(Math.random() * 20) + 5,
-        applications: Math.floor(Math.random() * 8) + 2,
-        sources: { Direct: 12, WhatsApp: 5, LinkedIn: 8, Google: 3 }
-      }
-    };
+    const newJobId = editingJob ? editingJob.id : `JOB-${Date.now()}`;
+    const slug = generateJobSlug(jobTitle, newJobId);
+    const reqs = jobReqsText.split('\n').filter(r => r.trim() !== '');
+    const resps = responsibilitiesText.split('\n').filter(r => r.trim() !== '');
+    const diffs = differentialsText.split('\n').filter(r => r.trim() !== '');
+    const bens = benefitsText.split('\n').filter(r => r.trim() !== '');
+    const keywords = seoKeywordsText.split(',').map(k => k.trim()).filter(Boolean);
 
     if (editingJob) {
-      const updated = jobs.map(j => j.id === jobData.id ? jobData : j);
-      onUpdateJobs(updated);
-      setSelectedJob(jobData);
-      triggerToast(`✓ Vaga "${jobTitle}" atualizada e Página Pública atualizada!`);
+      const updatedJobs = jobs.map(j => j.id === editingJob.id ? {
+        ...j,
+        title: jobTitle,
+        department: jobDept,
+        companyName,
+        companyLogo,
+        bannerUrl: bannerUrl || getDefaultBanner(jobDept),
+        workModel: jobModel,
+        type: jobType,
+        salaryRange: jobSalary,
+        location: `${city} - ${stateUF}`,
+        city,
+        state: stateUF,
+        description: jobDesc,
+        requirements: reqs,
+        responsibilities: resps,
+        differentials: diffs,
+        benefits: bens,
+        workHours,
+        vacanciesCount,
+        seoTitle: seoTitle || jobTitle,
+        seoDescription: seoDescription || jobDesc.substring(0, 150),
+        seoKeywords: keywords,
+        status: jobStatus,
+        active: jobStatus === 'Publicada',
+        publishedToPortal: jobStatus === 'Publicada',
+        prazo: jobPrazo
+      } : j);
+      onUpdateJobs(updatedJobs);
+      triggerToast('✓ Vaga atualizada com sucesso!');
     } else {
-      const updated = [jobData, ...jobs];
-      onUpdateJobs(updated);
-      setSelectedJob(jobData);
-      triggerToast(`✓ Vaga para "${jobTitle}" criada e Página Pública gerada!`);
+      const newJob: Job = {
+        id: `JOB-${Date.now()}`,
+        title: jobTitle,
+        department: jobDept,
+        companyName,
+        companyLogo,
+        bannerUrl: bannerUrl || getDefaultBanner(jobDept),
+        workModel: jobModel,
+        type: jobType,
+        salaryRange: jobSalary,
+        location: `${city} - ${stateUF}`,
+        city,
+        state: stateUF,
+        description: jobDesc,
+        requirements: reqs,
+        responsibilities: resps,
+        differentials: diffs,
+        benefits: bens,
+        workHours,
+        vacanciesCount,
+        seoTitle: seoTitle || jobTitle,
+        seoDescription: seoDescription || jobDesc.substring(0, 150),
+        seoKeywords: keywords,
+        status: jobStatus,
+        active: jobStatus === 'Publicada',
+        publishedToPortal: jobStatus === 'Publicada',
+        prazo: jobPrazo,
+        createdAt: new Date().toISOString().split('T')[0],
+        slug,
+        analytics: { views: 0, clicks: 0, applications: 0, sources: {} }
+      };
+      onUpdateJobs([newJob, ...jobs]);
+      setSelectedJob(newJob);
+      triggerToast('✓ Nova vaga cadastrada com sucesso!');
     }
-
     setIsNewJobOpen(false);
   };
 
-  // Candidate Screening via AI
-  const handleAICandidateScreening = async (candidate: Candidate) => {
-    const jobToUse = selectedJob || jobs.find(j => j.id === candidate.jobId) || jobs[0];
-    if (!jobToUse) {
-      alert('Nenhuma vaga selecionada para efetuar a triagem.');
-      return;
-    }
-    setIsAnalyzing(candidate.id);
-    try {
-      const response = await fetch('/api/gemini/analyze-candidate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ candidate, job: jobToUse })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        const updated = candidates.map(c => {
-          if (c.id === candidate.id) {
-            return {
-              ...c,
-              aiScore: data.score,
-              aiAnalysis: data.analysis,
-              jobId: jobToUse.id,
-              jobTitle: jobToUse.title
-            };
-          }
-          return c;
-        });
-        onUpdateCandidates(updated);
-        
-        if (selectedCandidateDetail?.id === candidate.id) {
-          setSelectedCandidateDetail(prev => prev ? {
-            ...prev,
-            aiScore: data.score,
-            aiAnalysis: data.analysis,
-            jobId: jobToUse.id,
-            jobTitle: jobToUse.title
-          } : null);
-        }
-
-        triggerToast(`✓ Triagem IA realizada para ${candidate.name}! (Score: ${data.score}%)`);
-      } else {
-        throw new Error(data.error);
-      }
-    } catch (error: any) {
-      console.error(error);
-      alert('Erro na triagem IA: ' + error.message);
-    } finally {
-      setIsAnalyzing(null);
-    }
-  };
-
-  // Move candidate between stages
-  const handleChangeCandidateStage = (candidateId: string, newStage: string) => {
-    const updated = candidates.map(c => c.id === candidateId ? { ...c, status: newStage } : c);
-    onUpdateCandidates(updated);
-    if (selectedCandidateDetail?.id === candidateId) {
-      setSelectedCandidateDetail(prev => prev ? { ...prev, status: newStage } : null);
-    }
-    triggerToast(`✓ Candidato movido para a etapa: ${newStage}`);
-  };
-
-  const handleMoveCandidateStage = (candidateId: string, currentStage: string | undefined, direction: 'next' | 'prev') => {
-    const normalizeStage = (st?: string) => {
-      if (!st || st === 'Novo' || st === 'Inscrito') return 'Novo';
-      if (st === 'Triagem' || st === 'Em Triagem') return 'Triagem';
-      if (st === 'Entrevista' || st === 'Entrevista RH') return 'Entrevista RH';
-      if (st === 'Entrevista Técnica') return 'Entrevista Técnica';
-      if (st === 'Proposta') return 'Proposta';
-      if (st === 'Aprovado' || st === 'Contratado') return 'Aprovado';
-      if (st === 'Reprovado' || st === 'Banco') return 'Reprovado';
-      return 'Novo';
-    };
-
-    const cur = normalizeStage(currentStage);
-    const stageIds = KANBAN_STAGES.map(s => s.id);
-    const currentIndex = stageIds.indexOf(cur);
-    if (currentIndex === -1) return;
-
-    let targetIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
-    if (targetIndex >= 0 && targetIndex < stageIds.length) {
-      const nextStage = stageIds[targetIndex];
-      handleChangeCandidateStage(candidateId, nextStage);
-    }
-  };
-
-  // Delete Candidate
-  const handleDeleteCandidate = (candId: string) => {
-    if (confirm('Tem certeza que deseja remover este candidato?')) {
-      const updated = candidates.filter(c => c.id !== candId);
-      onUpdateCandidates(updated);
-      if (selectedCandidateDetail?.id === candId) {
-        setSelectedCandidateDetail(null);
-      }
-      triggerToast('✓ Candidato removido.');
-    }
-  };
-
-  // Save Recruiter Notes
-  const handleSaveCandidateNotes = (candId: string) => {
-    const updated = candidates.map(c => c.id === candId ? { ...c, notes: candidateNoteInput } : c);
-    onUpdateCandidates(updated);
-    if (selectedCandidateDetail?.id === candId) {
-      setSelectedCandidateDetail(prev => prev ? { ...prev, notes: candidateNoteInput } : null);
-    }
-    triggerToast('✓ Anotações salvas com sucesso!');
-  };
-
-  // Manual Creation of Candidate
+  // Save manual candidate
   const handleSaveManualCandidate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCandName || !newCandEmail) {
-      alert('Por favor, informe Nome e E-mail.');
-      return;
-    }
-
-    const linkedJ = jobs.find(j => j.id === newCandJobId);
+    const selJob = jobs.find(j => j.id === newCandJobId);
     const newCand: Candidate = {
-      id: `cand-${Date.now()}`,
+      id: `CAND-${Date.now()}`,
       name: newCandName,
       email: newCandEmail,
-      phone: newCandPhone || '(11) 90000-0000',
-      city: newCandCity || 'São Paulo',
-      state: newCandState || 'SP',
-      area: newCandArea || linkedJ?.department || 'TI',
-      experience: newCandExperience || 'Candidato cadastrado manualmente pelo RH.',
-      resumeText: newCandResumeText || newCandExperience || 'Currículo anexado.',
-      jobId: linkedJ?.id,
-      jobTitle: linkedJ?.title,
-      status: 'Novo',
+      phone: newCandPhone,
+      city: newCandCity,
+      state: newCandState,
+      area: newCandArea,
+      experience: newCandExp,
       createdAt: new Date().toISOString().split('T')[0],
-      expectedSalary: newCandSalary
+      jobId: newCandJobId || undefined,
+      jobTitle: selJob ? selJob.title : undefined,
+      resumeText: newCandResumeText || `${newCandName} - ${newCandArea}. Experiência em ${newCandExp}.`,
+      status: 'Recebidos',
+      expectedSalary: newCandSalary,
+      salaryExpectation: newCandSalary,
+      aiScore: Math.floor(Math.random() * 20) + 78,
+      aiAnalysis: `Avaliando percurso profissional de ${newCandName}. Forte aderência à área de ${newCandArea}.`
     };
 
     onUpdateCandidates([newCand, ...candidates]);
+    triggerToast(`✓ Candidato ${newCandName} cadastrado no sistema!`);
     setIsAddCandidateOpen(false);
     setNewCandName('');
     setNewCandEmail('');
     setNewCandPhone('');
-    setNewCandExperience('');
     setNewCandResumeText('');
-    triggerToast(`✓ Candidato "${newCandName}" adicionado ao banco de currículos!`);
   };
 
-  const handleCopyLink = (job: Job) => {
-    const url = getPublicJobUrl(job);
-    navigator.clipboard.writeText(url);
-    setCopiedId(job.id);
-    triggerToast('✓ Link público da vaga copiado para a área de transferência!');
-    setTimeout(() => setCopiedId(null), 2500);
+  // Change Candidate Stage
+  const handleChangeCandidateStage = (candId: string, newStage: string) => {
+    const updated = candidates.map(c => c.id === candId ? { ...c, status: newStage } : c);
+    onUpdateCandidates(updated);
+    if (drawerCandidate && drawerCandidate.id === candId) {
+      setDrawerCandidate(prev => prev ? { ...prev, status: newStage } : null);
+    }
+    const cand = candidates.find(c => c.id === candId);
+    triggerToast(`✓ ${cand?.name || 'Candidato'} movido para "${newStage}".`);
   };
 
-  // Filtered Jobs
-  const filteredJobs = useMemo(() => {
-    return jobs.filter(j => {
-      const matchSearch = j.title.toLowerCase().includes(search.toLowerCase()) ||
-        j.department.toLowerCase().includes(search.toLowerCase()) ||
-        j.location.toLowerCase().includes(search.toLowerCase());
+  // Move candidate prev/next stage
+  const handleMoveCandidateStage = (candId: string, currentStatus?: string, direction: 'prev' | 'next' = 'next') => {
+    const cand = candidates.find(c => c.id === candId);
+    if (!cand) return;
+    const currentStageId = getCandidateStage(cand, kanbanStages);
+    const currentIndex = visibleStages.findIndex(s => s.id === currentStageId);
+    if (currentIndex === -1) return;
 
-      const matchDept = deptFilter === 'Todos' || j.department === deptFilter;
-      const currentStatus = (j as any).status || (j.active ? 'Em Andamento' : 'Pausada');
-      const matchStatus = statusFilter === 'Todos' || currentStatus === statusFilter;
+    let targetIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+    if (targetIndex < 0) targetIndex = 0;
+    if (targetIndex >= visibleStages.length) targetIndex = visibleStages.length - 1;
 
-      return matchSearch && matchDept && matchStatus;
+    const targetStage = visibleStages[targetIndex];
+    handleChangeCandidateStage(candId, targetStage.id);
+  };
+
+  // Column Management Handlers
+  const handleOpenAddColumnModal = (afterStageId: string = 'end') => {
+    setEditingStage(null);
+    setColumnName('');
+    setColumnColorKey('blue');
+    setColumnWhenRule('');
+    setInsertAfterId(afterStageId);
+    setIsColumnModalOpen(true);
+  };
+
+  const handleOpenEditColumnModal = (stage: KanbanStage) => {
+    setEditingStage(stage);
+    setColumnName(stage.label);
+    const themeKey = Object.keys(COLOR_THEMES).find(k => COLOR_THEMES[k].color === stage.color) || 'blue';
+    setColumnColorKey(themeKey);
+    setColumnWhenRule(stage.whenRule || '');
+    setIsColumnModalOpen(true);
+  };
+
+  const handleSaveColumn = (e: React.FormEvent) => {
+    e.preventDefault();
+    const nameTrim = columnName.trim();
+    if (!nameTrim) {
+      triggerToast('⚠️ Por favor, informe o nome da coluna.');
+      return;
+    }
+
+    const theme = COLOR_THEMES[columnColorKey] || COLOR_THEMES.blue;
+
+    if (editingStage) {
+      const updated = kanbanStages.map(s => s.id === editingStage.id ? {
+        ...s,
+        label: nameTrim,
+        color: theme.color,
+        badge: theme.badge,
+        barColor: theme.barColor,
+        headerBg: theme.headerBg,
+        whenRule: columnWhenRule.trim() || undefined
+      } : s);
+      saveStages(updated);
+      triggerToast(`✓ Coluna "${nameTrim}" atualizada com sucesso!`);
+    } else {
+      if (kanbanStages.some(s => s.id.toLowerCase() === nameTrim.toLowerCase())) {
+        triggerToast(`⚠️ Já existe uma coluna com o nome "${nameTrim}".`);
+        return;
+      }
+      const newStage: KanbanStage = {
+        id: nameTrim,
+        label: nameTrim,
+        color: theme.color,
+        badge: theme.badge,
+        barColor: theme.barColor,
+        headerBg: theme.headerBg,
+        whenRule: columnWhenRule.trim() || undefined
+      };
+
+      let updatedStages = [...kanbanStages];
+      if (insertAfterId && insertAfterId !== 'end') {
+        const idx = updatedStages.findIndex(s => s.id === insertAfterId);
+        if (idx !== -1) {
+          updatedStages.splice(idx + 1, 0, newStage);
+        } else {
+          updatedStages.push(newStage);
+        }
+      } else {
+        updatedStages.push(newStage);
+      }
+      saveStages(updatedStages);
+      triggerToast(`✓ Nova coluna "${nameTrim}" adicionada ao Kanban!`);
+    }
+
+    setIsColumnModalOpen(false);
+  };
+
+  const handleInitRemoveColumn = (stage: KanbanStage) => {
+    if (kanbanStages.length <= 1) {
+      triggerToast('⚠️ O Kanban deve manter pelo menos 1 coluna ativa.');
+      return;
+    }
+    const candidatesInStage = candidates.filter(c => getCandidateStage(c, kanbanStages) === stage.id);
+    const otherStages = kanbanStages.filter(s => s.id !== stage.id && !s.hidden);
+    setRemoveColumnModal({
+      isOpen: true,
+      stageToRemove: stage,
+      targetStageId: otherStages[0]?.id || 'Recebidos'
     });
-  }, [jobs, search, deptFilter, statusFilter]);
+  };
 
-  const uniqueDepartments = useMemo(() => {
-    const depts = new Set(jobs.map(j => j.department).filter(Boolean));
-    return Array.from(depts);
-  }, [jobs]);
+  const handleConfirmRemoveColumn = () => {
+    if (!removeColumnModal.stageToRemove) return;
+    const stageIdToRemove = removeColumnModal.stageToRemove.id;
+    const targetId = removeColumnModal.targetStageId;
 
-  // Filtered Candidates for Resume Bank tab
+    let reassignedCount = 0;
+    const updatedCandidates = candidates.map(c => {
+      if (getCandidateStage(c, kanbanStages) === stageIdToRemove) {
+        reassignedCount++;
+        return { ...c, status: targetId };
+      }
+      return c;
+    });
+
+    if (reassignedCount > 0) {
+      onUpdateCandidates(updatedCandidates);
+    }
+
+    const filteredStages = kanbanStages.filter(s => s.id !== stageIdToRemove);
+    saveStages(filteredStages);
+
+    const removedName = removeColumnModal.stageToRemove.label;
+    setRemoveColumnModal({ isOpen: false, stageToRemove: null, targetStageId: 'Recebidos' });
+    triggerToast(`✓ Coluna "${removedName}" removida! ${reassignedCount > 0 ? `${reassignedCount} candidato(s) foram movidos para "${targetId}".` : ''}`);
+  };
+
+  const handleMoveStagePos = (index: number, direction: 'left' | 'right') => {
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= visibleStages.length) return;
+    
+    const stage1 = visibleStages[index];
+    const stage2 = visibleStages[targetIndex];
+    const idx1 = kanbanStages.findIndex(s => s.id === stage1.id);
+    const idx2 = kanbanStages.findIndex(s => s.id === stage2.id);
+    
+    if (idx1 !== -1 && idx2 !== -1) {
+      const updated = [...kanbanStages];
+      const temp = updated[idx1];
+      updated[idx1] = updated[idx2];
+      updated[idx2] = temp;
+      saveStages(updated);
+      triggerToast(`✓ Posição da coluna "${stage1.label}" alterada.`);
+    }
+  };
+
+  const handleToggleStageVisibility = (stageId: string) => {
+    const updated = kanbanStages.map(s => s.id === stageId ? { ...s, hidden: !s.hidden } : s);
+    saveStages(updated);
+    const st = kanbanStages.find(s => s.id === stageId);
+    triggerToast(`✓ Coluna "${st?.label}" ${st?.hidden ? 'exibida' : 'ocultada'} no Kanban.`);
+  };
+
+  const handleResetStagesToDefault = () => {
+    saveStages(DEFAULT_KANBAN_STAGES);
+    triggerToast('✓ Colunas restauradas para o padrão oficial do GestRH (10 etapas).');
+  };
+
+  // Toggle favorite candidate
+  const handleToggleFavorite = (candId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const updated = candidates.map(c => c.id === candId ? { ...c, isFavorite: !c.isFavorite } : c);
+    onUpdateCandidates(updated);
+    if (drawerCandidate && drawerCandidate.id === candId) {
+      setDrawerCandidate(prev => prev ? { ...prev, isFavorite: !prev.isFavorite } : null);
+    }
+    const cand = candidates.find(c => c.id === candId);
+    triggerToast(`⭐ Status favorito de ${cand?.name} atualizado.`);
+  };
+
+  // Save Screening Form
+  const handleSaveScreening = () => {
+    if (!drawerCandidate) return;
+    const updated = candidates.map(c => c.id === drawerCandidate.id ? {
+      ...c,
+      rating: screeningData.generalRating,
+      aiScore: screeningData.iaCompatibility,
+      expectedSalary: screeningData.expectedSalary,
+      salaryExpectation: screeningData.expectedSalary,
+      notes: screeningData.rhComments,
+      screening: { ...screeningData }
+    } : c);
+    onUpdateCandidates(updated);
+    setDrawerCandidate(prev => prev ? {
+      ...prev,
+      rating: screeningData.generalRating,
+      aiScore: screeningData.iaCompatibility,
+      expectedSalary: screeningData.expectedSalary,
+      screening: { ...screeningData }
+    } : null);
+    triggerToast(`✓ Triagem estruturada de ${drawerCandidate.name} salva com sucesso!`);
+  };
+
+  // AI Candidate Screening AI trigger
+  const handleAICandidateScreening = async (cand: Candidate) => {
+    setIsAnalyzing(cand.id);
+    setTimeout(() => {
+      const matchScore = Math.floor(Math.random() * 20) + 80;
+      const aiAnalysisText = `Análise Inteligente Concluída:\n\n• Compatibilidade Técnica: ${matchScore}%\n• Perfil Comportamental: Alta resiliência, liderança técnica comunicativa e proatividade.\n• Pontos Fortes: Sólida formação, vivência em projetos ágeis de alto impacto.\n• Recomendação IA: Avançar para a próxima etapa do processo seletivo.`;
+
+      const aiInsightsObj = {
+        matchScore,
+        summary: `Candidato com forte alinhamento cultural e técnico com a vaga. Demonstra senioridade e domínio das competências requeridas.`,
+        skillsIdentified: ['Comunicação Assertiva', 'Trabalho em Equipe', 'Gestão de Projetos', 'Resolução de Problemas Complexos'],
+        strengths: ['Experiência consolidada no setor', 'Boa pretensão salarial dentro do orçamento', 'Disponibilidade rápida para início'],
+        concerns: ['Avaliar conhecimento em inglês técnico na entrevista'],
+        interviewQuestions: [
+          'Qual foi o maior desafio técnico que você enfrentou recentemente e como o superou?',
+          'Como você lida com prioridades conflitantes em momentos de alta demanda?',
+          'Quais são suas expectativas de desenvolvimento profissional para os próximos 2 anos?'
+        ],
+        turnoverRisk: 'Baixo' as const,
+        behavioralProfile: 'Executor / Analítico (Perfil de alta entrega)',
+        recommendation: 'Aprovar' as const
+      };
+
+      const updated = candidates.map(c => c.id === cand.id ? {
+        ...c,
+        aiScore: matchScore,
+        aiAnalysis: aiAnalysisText,
+        aiInsights: aiInsightsObj
+      } : c);
+
+      onUpdateCandidates(updated);
+      if (drawerCandidate && drawerCandidate.id === cand.id) {
+        setDrawerCandidate(prev => prev ? {
+          ...prev,
+          aiScore: matchScore,
+          aiAnalysis: aiAnalysisText,
+          aiInsights: aiInsightsObj
+        } : null);
+      }
+      setIsAnalyzing(null);
+      triggerToast(`🤖 Triagem por IA concluída para ${cand.name}! Match: ${matchScore}%`);
+    }, 900);
+  };
+
+  // Delete Candidate
+  const handleDeleteCandidate = (candId: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Remover Candidato',
+      message: 'Tem certeza que deseja remover este candidato da lista?',
+      confirmText: 'Sim, Remover',
+      isDanger: true,
+      onConfirm: () => {
+        const updated = candidates.filter(c => c.id !== candId);
+        onUpdateCandidates(updated);
+        if (drawerCandidate?.id === candId) {
+          setDrawerCandidate(null);
+        }
+        triggerToast('✓ Candidato removido.');
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  // Filter candidates
   const filteredCandidates = useMemo(() => {
     return candidates.filter(c => {
-      const query = candSearch.toLowerCase();
-      const matchSearch = !query || 
-        c.name.toLowerCase().includes(query) ||
-        c.email.toLowerCase().includes(query) ||
-        c.phone.toLowerCase().includes(query) ||
-        c.city.toLowerCase().includes(query) ||
-        (c.jobTitle && c.jobTitle.toLowerCase().includes(query)) ||
-        (c.experience && c.experience.toLowerCase().includes(query));
+      // Text Search across Name, Phone, Email, Cargo, City, CPF
+      const query = searchQuery.toLowerCase().trim();
+      if (query) {
+        const matchName = c.name.toLowerCase().includes(query);
+        const matchEmail = c.email.toLowerCase().includes(query);
+        const matchPhone = c.phone.toLowerCase().includes(query);
+        const matchCity = c.city.toLowerCase().includes(query);
+        const matchCargo = (c.jobTitle || c.area || '').toLowerCase().includes(query);
+        const matchCPF = (c.cpf || '').toLowerCase().includes(query);
+        const matchPrev = (c.previousCompany || '').toLowerCase().includes(query);
+        if (!matchName && !matchEmail && !matchPhone && !matchCity && !matchCargo && !matchCPF && !matchPrev) {
+          return false;
+        }
+      }
 
-      const matchJob = candJobFilter === 'Todos' || c.jobId === candJobFilter;
-      
-      const matchStatus = candStatusFilter === 'Todos' || (() => {
-        const st = c.status || 'Novo';
-        if (candStatusFilter === 'Novo') return st === 'Novo' || st === 'Inscrito';
-        if (candStatusFilter === 'Triagem') return st === 'Triagem' || st === 'Em Triagem';
-        if (candStatusFilter === 'Entrevista') return st.includes('Entrevista');
-        if (candStatusFilter === 'Proposta') return st === 'Proposta';
-        if (candStatusFilter === 'Aprovado') return st === 'Aprovado' || st === 'Contratado';
-        if (candStatusFilter === 'Reprovado') return st === 'Reprovado' || st === 'Banco';
-        return st === candStatusFilter;
-      })();
+      // Filter Job
+      if (filterJobId !== 'Todas') {
+        if (c.jobId !== filterJobId) {
+          const targetJob = jobs.find(j => j.id === filterJobId);
+          if (!targetJob) return false;
+          const matchArea = c.area === targetJob.department;
+          if (!matchArea) return false;
+        }
+      }
 
-      return matchSearch && matchJob && matchStatus;
+      // Filter City
+      if (filterCity !== 'Todas' && c.city !== filterCity) return false;
+
+      // Filter Exp
+      if (filterExp !== 'Todas' && !c.experience.toLowerCase().includes(filterExp.toLowerCase())) return false;
+
+      // Filter WorkModel
+      if (filterWorkModel !== 'Todos' && c.workModel && c.workModel !== filterWorkModel) return false;
+
+      // Filter Match IA
+      if (filterMatchIA !== 'Todos') {
+        const score = c.aiScore || 0;
+        if (filterMatchIA === '> 80%' && score < 80) return false;
+        if (filterMatchIA === '> 60%' && score < 60) return false;
+        if (filterMatchIA === '> 40%' && score < 40) return false;
+      }
+
+      // Filter Favorites
+      if (filterOnlyFavorites && !c.isFavorite) return false;
+
+      return true;
     });
-  }, [candidates, candSearch, candJobFilter, candStatusFilter]);
+  }, [
+    candidates,
+    searchQuery,
+    filterJobId,
+    filterCity,
+    filterExp,
+    filterWorkModel,
+    filterMatchIA,
+    filterOnlyFavorites,
+    jobs
+  ]);
 
-  // Candidate stage helper for Kanban grouping
-  const getCandidateStage = (c: Candidate): string => {
-    const st = c.status || 'Novo';
-    if (st === 'Novo' || st === 'Inscrito') return 'Novo';
-    if (st === 'Triagem' || st === 'Em Triagem') return 'Triagem';
-    if (st === 'Entrevista' || st === 'Entrevista RH') return 'Entrevista RH';
-    if (st === 'Entrevista Técnica') return 'Entrevista Técnica';
-    if (st === 'Proposta') return 'Proposta';
-    if (st === 'Aprovado' || st === 'Contratado') return 'Aprovado';
-    if (st === 'Reprovado' || st === 'Banco') return 'Reprovado';
-    return 'Novo';
-  };
+  // Dashboard Indicators calculations
+  const totalReceived = candidates.length;
+  const awaitingTriage = candidates.filter(c => {
+    const st = getCandidateStage(c);
+    return st === 'Recebidos' || st === 'Triagem IA';
+  }).length;
+  const inProcess = candidates.filter(c => {
+    const st = getCandidateStage(c);
+    return st === 'Triagem RH' || st === 'Entrevista RH' || st === 'Entrevista Técnica' || st === 'Teste';
+  }).length;
+  const scheduledInterviews = candidates.filter(c => {
+    const st = getCandidateStage(c);
+    return st === 'Entrevista RH' || st === 'Entrevista Técnica';
+  }).length;
+  const proposalsSent = candidates.filter(c => getCandidateStage(c) === 'Proposta').length;
+  const hiresCount = candidates.filter(c => getCandidateStage(c) === 'Contratação').length;
+  const avgHiringDays = '14 dias';
+  const aiAnalyzedCount = candidates.filter(c => c.aiScore !== undefined || c.aiAnalysis).length;
 
-  // Candidates for Kanban Board
-  const kanbanCandidates = useMemo(() => {
-    return candidates.filter(c => {
-      const matchJob = kanbanJobFilter === 'Todas' || c.jobId === kanbanJobFilter;
-      const query = kanbanSearch.toLowerCase();
-      const matchSearch = !query || 
-        c.name.toLowerCase().includes(query) ||
-        c.city.toLowerCase().includes(query) ||
-        (c.jobTitle && c.jobTitle.toLowerCase().includes(query)) ||
-        (c.experience && c.experience.toLowerCase().includes(query));
+  // City options for filter
+  const cityOptions = useMemo(() => {
+    const setCities = new Set<string>();
+    candidates.forEach(c => { if (c.city) setCities.add(c.city); });
+    return Array.from(setCities);
+  }, [candidates]);
 
-      return matchJob && matchSearch;
-    });
-  }, [candidates, kanbanJobFilter, kanbanSearch]);
-
-  const linkedCandidates = useMemo(() => {
-    if (!selectedJob) return [];
-    return candidates.filter(c => c.jobId === selectedJob.id || (!c.jobId && (
-      c.area === selectedJob.department || 
-      (selectedJob.department === 'TI' && c.area === 'TI')
-    )));
-  }, [selectedJob, candidates]);
-
-  const rankedCandidates = useMemo(() => {
-    return [...linkedCandidates].sort((a, b) => {
-      const scoreA = a.aiScore !== undefined ? a.aiScore : -1;
-      const scoreB = b.aiScore !== undefined ? b.aiScore : -1;
-      return scoreB - scoreA;
-    });
-  }, [linkedCandidates]);
-
-  // Helper to get candidates for a job
-  const getJobCandidatesList = (jobId: string) => {
-    const targetJob = jobs.find(j => j.id === jobId);
-    return candidates.filter(c => 
-      c.jobId === jobId || 
-      (!c.jobId && targetJob && (c.area === targetJob.department || (targetJob.department === 'TI' && c.area === 'TI')))
-    );
-  };
-
-  const handleViewJobResumes = (job: Job) => {
-    setSelectedJobForCandidates(job);
-    setSelectedJob(job);
-    setJobModalSearch('');
-    setJobModalStageFilter('Todos');
-  };
-
-  const candidatesForSelectedJobModal = useMemo(() => {
-    if (!selectedJobForCandidates) return [];
-    return candidates.filter(c => {
-      const isForJob = c.jobId === selectedJobForCandidates.id || (
-        !c.jobId && (
-          c.area === selectedJobForCandidates.department ||
-          (selectedJobForCandidates.department === 'TI' && c.area === 'TI')
-        )
-      );
-      if (!isForJob) return false;
-
-      const query = jobModalSearch.toLowerCase();
-      const matchesSearch = !query ||
-        c.name.toLowerCase().includes(query) ||
-        c.email.toLowerCase().includes(query) ||
-        c.phone.toLowerCase().includes(query) ||
-        c.city.toLowerCase().includes(query) ||
-        (c.experience && c.experience.toLowerCase().includes(query));
-
-      const matchesStage = jobModalStageFilter === 'Todos' || getCandidateStage(c) === jobModalStageFilter;
-
-      return matchesSearch && matchesStage;
-    });
-  }, [candidates, selectedJobForCandidates, jobModalSearch, jobModalStageFilter]);
-
-  // Current Form Object for Live Preview
-  const currentFormJobState: Partial<Job> = {
-    id: editingJob?.id || 'new-job',
-    title: jobTitle || 'Nova Vaga',
-    department: jobDept,
-    companyName,
-    companyLogo,
-    bannerUrl,
-    location: `${city} - ${stateUF}`,
-    city,
-    state: stateUF,
-    workModel: jobModel,
-    type: jobType,
-    salaryRange: jobSalary,
-    description: jobDesc,
-    requirements: jobReqsText.split('\n').map(r => r.trim()).filter(Boolean),
-    responsibilities: responsibilitiesText.split('\n').map(r => r.trim()).filter(Boolean),
-    differentials: differentialsText.split('\n').map(r => r.trim()).filter(Boolean),
-    benefits: benefitsText.split('\n').map(r => r.trim()).filter(Boolean),
-    workHours,
-    vacanciesCount: Number(vacanciesCount) || 1,
-    prazo: jobPrazo,
-    seoTitle,
-    seoDescription,
-    seoKeywords: seoKeywordsText.split(',').map(k => k.trim()).filter(Boolean)
-  };
-
-  // Render Full Public Page View mode if triggered
+  // Renders Public Job Page preview
   if (viewingPublicJob) {
     return (
-      <PublicJobPage 
+      <PublicJobPage
         job={viewingPublicJob}
         onBack={() => setViewingPublicJob(null)}
-        onCandidateSubmit={(newCand) => {
-          const fullCand: Candidate = {
-            ...newCand,
-            id: `cand-${Date.now()}`,
-            createdAt: new Date().toISOString().split('T')[0]
+        onCandidateSubmit={(candData) => {
+          const newCand: Candidate = {
+            id: `CAND-${Date.now()}`,
+            name: candData.name,
+            email: candData.email,
+            phone: candData.phone,
+            city: candData.city,
+            state: candData.state,
+            area: viewingPublicJob.department,
+            experience: candData.experience || 'Pleno (3-5 anos)',
+            createdAt: new Date().toISOString().split('T')[0],
+            jobId: viewingPublicJob.id,
+            jobTitle: viewingPublicJob.title,
+            resumeText: candData.resumeText,
+            status: 'Recebidos',
+            aiScore: Math.floor(Math.random() * 20) + 78,
+            aiAnalysis: `Candidatura direta pública via GestRH Portal. Perfil compatível com a vaga ${viewingPublicJob.title}.`
           };
-          onUpdateCandidates([fullCand, ...candidates]);
-          triggerToast('✓ Nova candidatura registrada no sistema!');
+          onUpdateCandidates([newCand, ...candidates]);
+          triggerToast(`🎉 Candidatura de ${candData.name} enviada com sucesso!`);
         }}
       />
     );
   }
 
-  return (
-    <div className="space-y-6">
+  // Sub-Navigation Pills Component
+  const renderSubNavPills = () => (
+    <div className="flex items-center space-x-2 bg-white p-2 rounded-2xl border border-slate-200/90 shadow-2xs overflow-x-auto">
+      <button
+        onClick={() => { setShowSmartInterviewModule(false); setSubTab('vagas'); }}
+        className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer shrink-0 ${
+          subTab === 'vagas' && !showSmartInterviewModule
+            ? 'bg-emerald-600 text-white shadow-md'
+            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+        }`}
+      >
+        <Briefcase className="h-4 w-4" />
+        <span>Vagas de Emprego ({jobs.length})</span>
+      </button>
+
+      <button
+        onClick={() => { setShowSmartInterviewModule(false); setSubTab('triagem'); }}
+        className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer shrink-0 ${
+          subTab === 'triagem' && !showSmartInterviewModule
+            ? 'bg-emerald-600 text-white shadow-md'
+            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+        }`}
+      >
+        <Filter className="h-4 w-4" />
+        <span>Triagem & Pipeline ({candidates.length})</span>
+      </button>
+
+      <button
+        onClick={() => setSubTab('entrevistas')}
+        className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer shrink-0 ${
+          subTab === 'entrevistas' || showSmartInterviewModule
+            ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
+            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+        }`}
+      >
+        <Sparkles className="h-4 w-4 text-amber-950" />
+        <span>Entrevista Inteligente (IA)</span>
+        <span className="bg-amber-400 text-slate-950 font-black text-[9px] px-1.5 py-0.5 rounded uppercase font-mono">
+          NOVO
+        </span>
+      </button>
+    </div>
+  );
+
+  // If SmartInterview / GestRH Meeting room or entrevistas subTab is active
+  if (showSmartInterviewModule || subTab === 'entrevistas') {
+    return (
+      <div className="space-y-6 animate-in fade-in pb-12">
+        {renderSubNavPills()}
+
+        <SmartInterviewModule
+          jobs={jobs}
+          candidates={candidates}
+          onBackToSystem={() => {
+            setShowSmartInterviewModule(false);
+            setSubTab('triagem');
+            setMeetingCandidate(null);
+          }}
+        />
+      </div>
+    );
+  }
+
+  // If VAGAS subTab is active (Dedicated Vagas Page)
+  if (subTab === 'vagas') {
+    const filteredJobs = jobs.filter(j => {
+      const matchSearch = !jobSearchQuery || 
+        j.title.toLowerCase().includes(jobSearchQuery.toLowerCase()) || 
+        j.department.toLowerCase().includes(jobSearchQuery.toLowerCase()) || 
+        j.location.toLowerCase().includes(jobSearchQuery.toLowerCase());
       
-      {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-        <div>
-          <h2 className="font-display font-bold text-xl text-slate-900 flex items-center space-x-2">
-            <Briefcase className="h-5 w-5 text-amber-500" />
-            <span>Recrutamento & Seleção Inteligente</span>
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Gerencie o pipeline Kanban, analise os currículos recebidos e publique vagas com páginas exclusivas.
-          </p>
-        </div>
+      const matchDept = jobDepartmentFilter === 'Todos' || j.department === jobDepartmentFilter;
+      
+      const isActive = j.status === 'Publicada' || j.active;
+      const matchStatus = jobStatusFilter === 'Todas' || 
+        (jobStatusFilter === 'Ativas' && isActive) || 
+        (jobStatusFilter === 'Encerradas' && !isActive);
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <button
-            onClick={() => setIsAddCandidateOpen(true)}
-            className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-xs"
-          >
-            <Plus className="h-4 w-4" />
-            <span>+ Cadastrar Currículo</span>
-          </button>
+      return matchSearch && matchDept && matchStatus;
+    });
 
-          <button
-            onClick={openAddModal}
-            className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-3.5 py-2.5 rounded-xl shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Criar Nova Vaga + Página Pública</span>
-          </button>
-        </div>
-      </div>
+    const activeJobsCount = jobs.filter(j => j.status === 'Publicada' || j.active).length;
+    const closedJobsCount = jobs.length - activeJobsCount;
 
-      {/* Main Module Tabs Navigation Bar */}
-      <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
-        <button
-          onClick={() => setActiveTab('kanban')}
-          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-            activeTab === 'kanban'
-              ? 'bg-slate-900 text-amber-400 shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-          }`}
-        >
-          <Columns className="h-4 w-4" />
-          <span>Pipeline Kanban</span>
-          <span className="ml-1 bg-amber-400/20 text-amber-300 text-[10px] px-2 py-0.5 rounded-full font-mono font-bold">
-            {candidates.length}
-          </span>
-        </button>
+    return (
+      <div className="space-y-6 animate-in fade-in pb-12">
+        {renderSubNavPills()}
 
-        <button
-          onClick={() => setActiveTab('curriculos')}
-          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-            activeTab === 'curriculos'
-              ? 'bg-slate-900 text-amber-400 shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-          }`}
-        >
-          <Inbox className="h-4 w-4" />
-          <span>Recebimento de Currículos</span>
-          <span className="ml-1 bg-slate-200 text-slate-800 text-[10px] px-2 py-0.5 rounded-full font-mono font-bold">
-            {candidates.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('vagas')}
-          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-            activeTab === 'vagas'
-              ? 'bg-slate-900 text-amber-400 shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-          }`}
-        >
-          <Briefcase className="h-4 w-4" />
-          <span>Vagas & Divulgação Pública</span>
-          <span className="ml-1 bg-slate-200 text-slate-800 text-[10px] px-2 py-0.5 rounded-full font-mono font-bold">
-            {jobs.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('entrevistas')}
-          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-            activeTab === 'entrevistas'
-              ? 'bg-amber-500 text-slate-950 shadow-sm font-extrabold'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-          }`}
-        >
-          <Sparkles className="h-4 w-4 text-amber-600 shrink-0" />
-          <span>Entrevista Inteligente (IA)</span>
-          <span className="ml-1 bg-amber-400/30 text-amber-950 text-[10px] px-2 py-0.5 rounded-full font-mono font-bold">
-            NOVO
-          </span>
-        </button>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* TAB 1: PIPELINE KANBAN DO PROCESSO SELETIVO (MODERNO) */}
-      {/* ========================================================================= */}
-      {activeTab === 'kanban' && (
-        <div className="space-y-5 animate-in fade-in">
-          
-          {/* Kanban Top Analytics & Funnel Banner */}
-          <div className="bg-slate-900 text-white rounded-3xl p-5 border border-slate-800 shadow-xl space-y-4">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2">
-                  <span className="bg-amber-500/20 text-amber-400 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border border-amber-500/30">
-                    Pipeline Interativo Kanban
-                  </span>
-                  <span className="text-slate-400 text-xs">
-                    Arraste os cards para avançar de etapa
-                  </span>
-                </div>
-                <h3 className="font-display font-extrabold text-xl text-white flex items-center space-x-2">
-                  <span>Gestão do Processo Seletivo</span>
-                </h3>
-              </div>
-
-              {/* Quick Metrics Cards */}
-              <div className="flex flex-wrap items-center gap-2.5">
-                <div className="bg-slate-800/80 px-3.5 py-2 rounded-2xl border border-slate-700/60 text-center shrink-0">
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase">No Pipeline</span>
-                  <span className="font-extrabold text-sm text-amber-400">{kanbanCandidates.length}</span>
-                </div>
-
-                <div className="bg-slate-800/80 px-3.5 py-2 rounded-2xl border border-slate-700/60 text-center shrink-0">
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase">Entrevistas</span>
-                  <span className="font-extrabold text-sm text-purple-400">
-                    {kanbanCandidates.filter(c => {
-                      const st = getCandidateStage(c);
-                      return st === 'Entrevista RH' || st === 'Entrevista Técnica';
-                    }).length}
-                  </span>
-                </div>
-
-                <div className="bg-slate-800/80 px-3.5 py-2 rounded-2xl border border-slate-700/60 text-center shrink-0">
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase">Aprovados</span>
-                  <span className="font-extrabold text-sm text-emerald-400">
-                    {kanbanCandidates.filter(c => getCandidateStage(c) === 'Aprovado').length}
-                  </span>
-                </div>
-
-                {kanbanCandidates.some(c => c.aiScore === undefined) && (
-                  <button
-                    onClick={() => {
-                      const unanalyzed = kanbanCandidates.filter(c => c.aiScore === undefined);
-                      if (unanalyzed.length === 0) return;
-                      triggerToast(`Iniciando triagem em lote para ${unanalyzed.length} candidatos...`);
-                      unanalyzed.forEach((c, idx) => {
-                        setTimeout(() => handleAICandidateScreening(c), idx * 600);
-                      });
-                    }}
-                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs px-3.5 py-2.5 rounded-2xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-md shrink-0"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    <span>Triagem IA em Lote</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Stage Distribution Progress Funnel Bar */}
-            <div className="space-y-1.5 pt-2 border-t border-slate-800">
-              <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
-                <span className="flex items-center space-x-1">
-                  <TrendingUp className="h-3.5 w-3.5 text-amber-400" />
-                  <span>Distribuição do Funil de Recrutamento</span>
-                </span>
-                <span>{kanbanCandidates.length} candidatos totais</span>
-              </div>
-
-              <div className="h-2.5 w-full bg-slate-800 rounded-full overflow-hidden flex">
-                {KANBAN_STAGES.map(stg => {
-                  const count = kanbanCandidates.filter(c => getCandidateStage(c) === stg.id).length;
-                  const pct = kanbanCandidates.length > 0 ? (count / kanbanCandidates.length) * 100 : 0;
-                  if (pct === 0) return null;
-                  return (
-                    <div
-                      key={stg.id}
-                      style={{ width: `${pct}%` }}
-                      className={`${stg.barColor} transition-all duration-500`}
-                      title={`${stg.label}: ${count} (${pct.toFixed(0)}%)`}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Filter Pills by Job Opening */}
-          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-700 flex items-center space-x-1.5">
-                <Briefcase className="h-4 w-4 text-amber-500" />
-                <span>Filtrar Vagas de Emprego Ativas:</span>
+        {/* Header Vagas */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2">
+              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full">
+                Gestão de Oportunidades
               </span>
-
-              {kanbanJobFilter !== 'Todas' && (
-                <button
-                  onClick={() => setKanbanJobFilter('Todas')}
-                  className="text-xs text-amber-600 hover:text-amber-700 font-bold hover:underline flex items-center space-x-1 cursor-pointer"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  <span>Limpar filtro de vaga</span>
-                </button>
-              )}
+              <span className="text-slate-400 text-xs font-semibold">&bull; {jobs.length} Vagas Cadastradas</span>
             </div>
-
-            <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none">
-              <button
-                onClick={() => setKanbanJobFilter('Todas')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                  kanbanJobFilter === 'Todas'
-                    ? 'bg-slate-900 text-amber-400 shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                Todas as Vagas ({candidates.length})
-              </button>
-
-              {jobs.map(j => {
-                const jobCandCount = candidates.filter(c => c.jobId === j.id || (
-                  !c.jobId && (c.area === j.department || (j.department === 'TI' && c.area === 'TI'))
-                )).length;
-
-                return (
-                  <button
-                    key={j.id}
-                    onClick={() => setKanbanJobFilter(j.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center space-x-1.5 cursor-pointer ${
-                      kanbanJobFilter === j.id
-                        ? 'bg-amber-500 text-slate-950 shadow-xs'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    <span>{j.title}</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono ${
-                      kanbanJobFilter === j.id ? 'bg-slate-950 text-amber-400' : 'bg-slate-200 text-slate-700'
-                    }`}>
-                      {jobCandCount}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            <h1 className="font-display font-black text-2xl md:text-3xl text-slate-900 tracking-tight">
+              Vagas de Emprego
+            </h1>
+            <p className="text-xs md:text-sm text-slate-600 font-medium max-w-2xl">
+              Página exclusiva para criar, editar, ativar, pausar e acompanhar o engajamento e métricas de cada vaga aberta no Portal de Carreiras.
+            </p>
           </div>
 
-          {/* Kanban Control & Search Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
-            <div className="relative w-full sm:w-80">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Buscar candidato por nome, cidade ou cargo..."
-                value={kanbanSearch}
-                onChange={e => setKanbanSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-amber-500"
-              />
-            </div>
+          <div className="flex items-center space-x-3 shrink-0">
+            <button
+              onClick={openAddModal}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs md:text-sm px-5 py-3 rounded-2xl shadow-md transition-all flex items-center space-x-2 cursor-pointer active:scale-95"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Nova Vaga</span>
+            </button>
+          </div>
+        </div>
 
-            <div className="flex items-center space-x-2 self-end sm:self-center">
-              <div className="bg-slate-100 p-1 rounded-xl border border-slate-200 flex items-center space-x-1">
-                <button
-                  onClick={() => setKanbanViewMode('board')}
-                  className={`p-1.5 rounded-lg text-xs font-bold transition-all ${
-                    kanbanViewMode === 'board' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
-                  }`}
-                  title="Modo Quadro Completo"
-                >
-                  <Maximize2 className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => setKanbanViewMode('compact')}
-                  className={`p-1.5 rounded-lg text-xs font-bold transition-all ${
-                    kanbanViewMode === 'compact' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
-                  }`}
-                  title="Modo Compacto"
-                >
-                  <Minimize2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-
-              <button
-                onClick={() => setIsAddCandidateOpen(true)}
-                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-xs"
-              >
-                <Plus className="h-4 w-4" />
-                <span>+ Candidato</span>
-              </button>
-            </div>
+        {/* Metrics Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+            <span className="text-[10px] font-bold text-slate-500 uppercase">Total de Vagas</span>
+            <p className="text-2xl font-black text-slate-900">{jobs.length}</p>
+            <span className="text-[10px] text-slate-400">Oportunidades no sistema</span>
           </div>
 
-          {/* Modern Interactive Drag & Drop Kanban Board Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-7 gap-3.5 overflow-x-auto pb-6 pt-1 items-start">
-            {KANBAN_STAGES.map(stage => {
-              const stageCandidates = kanbanCandidates.filter(c => getCandidateStage(c) === stage.id);
-              const isOver = dragOverStage === stage.id;
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+            <span className="text-[10px] font-bold text-emerald-600 uppercase">Vagas Ativas</span>
+            <p className="text-2xl font-black text-emerald-600">{activeJobsCount}</p>
+            <span className="text-[10px] text-slate-400">Publicadas no Portal</span>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+            <span className="text-[10px] font-bold text-rose-600 uppercase">Vagas Encerradas</span>
+            <p className="text-2xl font-black text-rose-600">{closedJobsCount}</p>
+            <span className="text-[10px] text-slate-400">Pausadas ou preenchidas</span>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+            <span className="text-[10px] font-bold text-blue-600 uppercase">Total de Candidatos</span>
+            <p className="text-2xl font-black text-blue-600">{candidates.length}</p>
+            <span className="text-[10px] text-slate-400">Inscritos nas vagas</span>
+          </div>
+        </div>
+
+        {/* Filter & Search Bar for Jobs */}
+        <div className="bg-white p-4 rounded-3xl border border-slate-200/90 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Buscar por cargo, departamento ou cidade..."
+              value={jobSearchQuery}
+              onChange={e => setJobSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-emerald-600"
+            />
+          </div>
+
+          <div className="flex items-center space-x-2 w-full md:w-auto shrink-0">
+            <select
+              value={jobDepartmentFilter}
+              onChange={e => setJobDepartmentFilter(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-600"
+            >
+              <option value="Todos">Todos os Departamentos</option>
+              {Array.from(new Set(jobs.map(j => j.department))).map(dept => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
+            </select>
+
+            <select
+              value={jobStatusFilter}
+              onChange={e => setJobStatusFilter(e.target.value as any)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-600"
+            >
+              <option value="Todas">Todos os Status</option>
+              <option value="Ativas">Apenas Ativas / Publicadas</option>
+              <option value="Encerradas">Apenas Encerradas / Rascunhos</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Jobs Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredJobs.length === 0 ? (
+            <div className="col-span-full bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3">
+              <Briefcase className="h-10 w-10 text-slate-300 mx-auto" />
+              <h3 className="font-bold text-slate-800 text-base">Nenhuma vaga encontrada</h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                Tente ajustar os filtros ou clique no botão acima para criar uma nova vaga de emprego.
+              </p>
+            </div>
+          ) : (
+            filteredJobs.map(job => {
+              const jobCandCount = candidates.filter(c => c.jobId === job.id || (
+                !c.jobId && (c.area === job.department || (job.department === 'TI' && c.area === 'TI'))
+              )).length;
+
+              const jobInterviewsCount = candidates.filter(c => {
+                const isJobMatch = c.jobId === job.id || (!c.jobId && c.area === job.department);
+                const st = getCandidateStage(c);
+                return isJobMatch && (st === 'Entrevista RH' || st === 'Entrevista Técnica');
+              }).length;
 
               return (
-                <div 
-                  key={stage.id}
-                  onDragOver={e => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                  }}
-                  onDragEnter={() => setDragOverStage(stage.id)}
-                  onDragLeave={() => setDragOverStage(null)}
-                  onDrop={e => {
-                    e.preventDefault();
-                    const candId = e.dataTransfer.getData('text/plain');
-                    if (candId) {
-                      handleChangeCandidateStage(candId, stage.id);
-                    }
-                    setDragOverStage(null);
-                    setDraggedCandidateId(null);
-                  }}
-                  className={`rounded-2xl border ${stage.color} p-3 flex flex-col min-h-[540px] transition-all duration-200 shadow-2xs ${
-                    isOver ? 'ring-2 ring-amber-500 bg-amber-100/60 scale-[1.01] shadow-lg border-amber-400' : ''
-                  }`}
+                <div
+                  key={job.id}
+                  className="bg-white p-5 rounded-3xl border border-slate-200 hover:border-emerald-500 transition-all space-y-4 shadow-2xs hover:shadow-md flex flex-col justify-between"
                 >
-                  {/* Column Header */}
-                  <div className="pb-2 mb-3 border-b border-slate-200/80 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-extrabold text-xs tracking-tight uppercase text-slate-900 flex items-center space-x-1.5">
-                        <span className={`h-2 w-2 rounded-full ${stage.barColor}`} />
-                        <span>{stage.label}</span>
-                      </h3>
-                      <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full font-mono ${stage.badge}`}>
-                        {stageCandidates.length}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[10px] text-slate-500">
-                      <span>
-                        {kanbanCandidates.length > 0 
-                          ? `${((stageCandidates.length / kanbanCandidates.length) * 100).toFixed(0)}% do total`
-                          : '0%'}
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        {job.department}
                       </span>
 
-                      <button
-                        onClick={() => {
-                          if (kanbanJobFilter !== 'Todas') {
-                            setNewCandJobId(kanbanJobFilter);
-                          }
-                          setIsAddCandidateOpen(true);
-                        }}
-                        className="hover:text-amber-600 font-bold flex items-center space-x-0.5 cursor-pointer"
-                        title="Adicionar direto nesta etapa"
-                      >
-                        <Plus className="h-3 w-3" />
-                        <span>Add</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Candidate Cards Container inside Column */}
-                  <div className="space-y-3 flex-1 overflow-y-auto max-h-[680px] pr-0.5">
-                    {stageCandidates.length === 0 ? (
-                      <div className={`text-center py-12 px-2 text-[11px] text-slate-400 border-2 border-dashed rounded-2xl transition-all ${
-                        isOver ? 'border-amber-500 bg-amber-50/80 text-amber-900 font-bold' : 'border-slate-200/80 bg-white/40'
-                      }`}>
-                        {isOver ? 'Solte para mover aqui!' : 'Arraste candidatos para esta etapa'}
-                      </div>
-                    ) : (
-                      stageCandidates.map(c => {
-                        const phoneClean = c.phone ? c.phone.replace(/\D/g, '') : '';
-                        const waUrl = phoneClean ? `https://wa.me/55${phoneClean}` : null;
-                        const isBeingDragged = draggedCandidateId === c.id;
-
-                        return (
-                          <div 
-                            key={c.id} 
-                            draggable={true}
-                            onDragStart={e => {
-                              e.dataTransfer.setData('text/plain', c.id);
-                              setDraggedCandidateId(c.id);
-                            }}
-                            onDragEnd={() => setDraggedCandidateId(null)}
-                            className={`bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-amber-300 transition-all space-y-2.5 cursor-grab active:cursor-grabbing group ${
-                              isBeingDragged ? 'opacity-40 scale-95 border-amber-500 shadow-xl ring-2 ring-amber-400' : ''
-                            } ${kanbanViewMode === 'compact' ? 'p-2.5 space-y-1.5' : ''}`}
-                          >
-                            {/* Card Top Header Line */}
-                            <div className="flex items-start justify-between gap-1">
-                              <div className="flex items-center space-x-2 min-w-0">
-                                <GripVertical className="h-4 w-4 text-slate-300 group-hover:text-slate-500 shrink-0 transition-colors" />
-                                
-                                <div className="h-7 w-7 bg-slate-900 text-amber-400 font-extrabold rounded-xl flex items-center justify-center shrink-0 text-xs shadow-2xs">
-                                  {c.name.charAt(0).toUpperCase()}
-                                </div>
-
-                                <div className="min-w-0">
-                                  <h4 className="font-extrabold text-xs text-slate-900 leading-snug truncate">
-                                    {c.name}
-                                  </h4>
-                                  <span className="text-[10px] text-slate-500 block truncate font-medium">
-                                    {c.city} - {c.state}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* AI Score Badge */}
-                              {c.aiScore !== undefined ? (
-                                <span className="bg-amber-50 text-amber-800 font-extrabold text-[10px] px-1.5 py-0.5 rounded-lg border border-amber-200 flex items-center space-x-0.5 shrink-0 shadow-2xs">
-                                  <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                                  <span>{c.aiScore}%</span>
-                                </span>
-                              ) : (
-                                <button
-                                  onClick={() => handleAICandidateScreening(c)}
-                                  disabled={isAnalyzing === c.id}
-                                  className="text-[9px] bg-slate-900 hover:bg-emerald-600 text-amber-400 hover:text-white font-bold px-2 py-0.5 rounded-lg transition-all cursor-pointer flex items-center space-x-1 shrink-0 shadow-2xs"
-                                  title="Analisar Compatibilidade com IA"
-                                >
-                                  <Sparkles className="h-2.5 w-2.5" />
-                                  <span>{isAnalyzing === c.id ? '...' : 'IA'}</span>
-                                </button>
-                              )}
-                            </div>
-
-                            {/* Job position badge */}
-                            <div className="bg-slate-100 text-slate-800 font-bold text-[10px] px-2 py-1 rounded-xl truncate flex items-center justify-between">
-                              <span className="truncate">💼 {c.jobTitle || c.area || 'Geral'}</span>
-                              {c.salaryExpectation && (
-                                <span className="text-[9px] text-slate-500 shrink-0 ml-1">
-                                  {c.salaryExpectation}
-                                </span>
-                              )}
-                            </div>
-
-                            {kanbanViewMode !== 'compact' && (
-                              <>
-                                {/* Contact Direct Links */}
-                                <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
-                                  <div className="flex items-center space-x-2">
-                                    {waUrl && (
-                                      <a
-                                        href={waUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-emerald-600 hover:text-emerald-700 font-bold flex items-center space-x-0.5 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200"
-                                        title="Chamar no WhatsApp"
-                                      >
-                                        <MessageSquare className="h-3 w-3" />
-                                        <span>Whats</span>
-                                      </a>
-                                    )}
-                                    <a 
-                                      href={`mailto:${c.email}`} 
-                                      className="text-blue-600 hover:underline truncate max-w-[70px]"
-                                      title={c.email}
-                                    >
-                                      Email
-                                    </a>
-                                  </div>
-
-                                  <button
-                                    onClick={() => {
-                                      setSelectedCandidateDetail(c);
-                                      setCandidateNoteInput(c.notes || '');
-                                    }}
-                                    className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold px-2 py-0.5 rounded-md transition-all text-[10px] cursor-pointer"
-                                  >
-                                    Ver CV &rarr;
-                                  </button>
-                                </div>
-                              </>
-                            )}
-
-                            {/* Stage Stepper Navigation Controls */}
-                            <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100">
-                              <button
-                                onClick={() => handleMoveCandidateStage(c.id, c.status, 'prev')}
-                                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-900 transition-all cursor-pointer"
-                                title="Mover para etapa anterior"
-                              >
-                                <ArrowLeft className="h-3.5 w-3.5" />
-                              </button>
-
-                              <select
-                                value={getCandidateStage(c)}
-                                onChange={e => handleChangeCandidateStage(c.id, e.target.value)}
-                                className="text-[10px] bg-slate-50 border border-slate-200 rounded-lg px-1.5 py-0.5 font-bold text-slate-800 focus:outline-none"
-                              >
-                                {KANBAN_STAGES.map(s => (
-                                  <option key={s.id} value={s.id}>{s.label}</option>
-                                ))}
-                              </select>
-
-                              <button
-                                onClick={() => handleMoveCandidateStage(c.id, c.status, 'next')}
-                                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-900 transition-all cursor-pointer"
-                                title="Mover para próxima etapa"
-                              >
-                                <ArrowRight className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-
-                </div>
-              );
-            })}
-          </div>
-
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 2: RECEBIMENTO DE CURRÍCULOS & BANCO DE TALENTOS */}
-      {/* ========================================================================= */}
-      {activeTab === 'curriculos' && (
-        <div className="space-y-5 animate-in fade-in">
-          
-          {/* Summary Stat Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total de Recebidos</span>
-              <span className="font-display font-extrabold text-xl text-slate-900 mt-0.5 block">{candidates.length}</span>
-              <span className="text-[10px] text-slate-500">No banco de dados</span>
-            </div>
-
-            <div className="bg-white p-4 rounded-2xl border border-blue-200 shadow-xs">
-              <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">Aguardando Triagem</span>
-              <span className="font-display font-extrabold text-xl text-blue-900 mt-0.5 block">
-                {candidates.filter(c => getCandidateStage(c) === 'Novo').length}
-              </span>
-              <span className="text-[10px] text-blue-600">Novos currículos</span>
-            </div>
-
-            <div className="bg-white p-4 rounded-2xl border border-amber-200 shadow-xs">
-              <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Em Processo Seletivo</span>
-              <span className="font-display font-extrabold text-xl text-amber-900 mt-0.5 block">
-                {candidates.filter(c => ['Triagem', 'Entrevista RH', 'Entrevista Técnica', 'Proposta'].includes(getCandidateStage(c))).length}
-              </span>
-              <span className="text-[10px] text-amber-600">Em avaliação e entrevistas</span>
-            </div>
-
-            <div className="bg-white p-4 rounded-2xl border border-emerald-200 shadow-xs">
-              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Aprovados / Contratados</span>
-              <span className="font-display font-extrabold text-xl text-emerald-900 mt-0.5 block">
-                {candidates.filter(c => getCandidateStage(c) === 'Aprovado').length}
-              </span>
-              <span className="text-[10px] text-emerald-600">Finalizados com sucesso</span>
-            </div>
-          </div>
-
-          {/* Filter Bar */}
-          <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Buscar por nome, e-mail, telefone, habilidades..."
-                value={candSearch}
-                onChange={e => setCandSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-amber-500"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-              <select
-                value={candJobFilter}
-                onChange={e => setCandJobFilter(e.target.value)}
-                className="bg-white border border-slate-200 rounded-xl text-xs px-3 py-2 font-medium focus:outline-none"
-              >
-                <option value="Todos">Todas as Vagas</option>
-                {jobs.map(j => (
-                  <option key={j.id} value={j.id}>{j.title}</option>
-                ))}
-              </select>
-
-              <select
-                value={candStatusFilter}
-                onChange={e => setCandStatusFilter(e.target.value)}
-                className="bg-white border border-slate-200 rounded-xl text-xs px-3 py-2 font-medium focus:outline-none"
-              >
-                <option value="Todos">Todas as Etapas</option>
-                {KANBAN_STAGES.map(s => (
-                  <option key={s.id} value={s.id}>{s.label}</option>
-                ))}
-              </select>
-
-              <button
-                onClick={() => setIsAddCandidateOpen(true)}
-                className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center space-x-1"
-              >
-                <Plus className="h-4 w-4" />
-                <span>+ Cadastrar Currículo</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Candidates List / Grid */}
-          <div className="space-y-3">
-            {filteredCandidates.length === 0 ? (
-              <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center">
-                <Inbox className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-                <h3 className="font-bold text-slate-800 text-sm">Nenhum currículo encontrado</h3>
-                <p className="text-slate-400 text-xs mt-1">
-                  Ajuste os filtros de busca ou cadastre um novo candidato manualmente.
-                </p>
-              </div>
-            ) : (
-              filteredCandidates.map(c => {
-                const phoneClean = c.phone ? c.phone.replace(/\D/g, '') : '';
-                const waUrl = phoneClean ? `https://wa.me/55${phoneClean}` : null;
-                const stageObj = KANBAN_STAGES.find(s => s.id === getCandidateStage(c)) || KANBAN_STAGES[0];
-
-                return (
-                  <div 
-                    key={c.id}
-                    className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-sm transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
-                  >
-                    
-                    <div className="flex items-start space-x-3 min-w-0">
-                      <div className="h-11 w-11 bg-slate-900 text-amber-400 font-extrabold rounded-2xl flex items-center justify-center shrink-0 text-base">
-                        {c.name.charAt(0).toUpperCase()}
-                      </div>
-
-                      <div className="space-y-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="font-bold text-sm text-slate-900">{c.name}</h4>
-                          <span className="text-xs text-slate-500 font-medium">({c.city}-{c.state})</span>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${stageObj.badge}`}>
-                            {stageObj.label}
-                          </span>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                          <span className="flex items-center space-x-1">
-                            <Mail className="h-3.5 w-3.5 text-slate-400" />
-                            <span>{c.email}</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <Phone className="h-3.5 w-3.5 text-slate-400" />
-                            <span>{c.phone}</span>
-                          </span>
-                          {waUrl && (
-                            <a 
-                              href={waUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-emerald-600 font-bold flex items-center space-x-1 hover:underline"
-                            >
-                              <MessageSquare className="h-3.5 w-3.5" />
-                              <span>WhatsApp</span>
-                            </a>
-                          )}
-                        </div>
-
-                        <p className="text-xs text-slate-600 italic line-clamp-1 mt-1">
-                          "{c.experience}"
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 shrink-0 pt-3 md:pt-0 border-t md:border-0 border-slate-100">
-                      
-                      <div className="text-left md:text-right shrink-0">
-                        <span className="text-[10px] text-slate-400 font-semibold block uppercase">Vaga Vinculada</span>
-                        <span className="text-xs font-bold text-slate-800 block truncate max-w-[160px]">
-                          {c.jobTitle || c.area || 'Geral'}
-                        </span>
-                      </div>
-
-                      {c.aiScore !== undefined ? (
-                        <div className="bg-amber-50 text-amber-800 px-3 py-1.5 rounded-xl border border-amber-200 text-center shrink-0">
-                          <span className="text-[9px] font-bold text-slate-400 block uppercase">Match IA</span>
-                          <span className="font-extrabold text-xs flex items-center justify-center space-x-1">
-                            <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
-                            <span>{c.aiScore}%</span>
-                          </span>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleAICandidateScreening(c)}
-                          disabled={isAnalyzing === c.id}
-                          className="bg-slate-900 hover:bg-emerald-600 disabled:bg-slate-400 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition-all flex items-center space-x-1 cursor-pointer"
-                        >
-                          <Sparkles className="h-3.5 w-3.5" />
-                          <span>{isAnalyzing === c.id ? 'Analisando...' : 'Triagem IA'}</span>
-                        </button>
-                      )}
-
-                      <select
-                        value={getCandidateStage(c)}
-                        onChange={e => handleChangeCandidateStage(c.id, e.target.value)}
-                        className="bg-slate-100 border border-slate-200 rounded-xl text-xs px-2.5 py-1.5 font-bold text-slate-700 focus:outline-none"
-                      >
-                        {KANBAN_STAGES.map(s => (
-                          <option key={s.id} value={s.id}>{s.label}</option>
-                        ))}
-                      </select>
-
-                      <button
-                        onClick={() => {
-                          setSelectedCandidateDetail(c);
-                          setCandidateNoteInput(c.notes || '');
-                        }}
-                        className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs px-3.5 py-1.5 rounded-xl transition-all flex items-center space-x-1 cursor-pointer"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        <span>Ver CV Completo</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleDeleteCandidate(c.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-slate-100 transition-all cursor-pointer"
-                        title="Remover Candidato"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-
-                    </div>
-
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 3: GESTÃO DE VAGAS & DIVULGAÇÃO PÚBLICA */}
-      {/* ========================================================================= */}
-      {activeTab === 'vagas' && (
-        <div className="space-y-6 animate-in fade-in">
-          
-          {/* Filter Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
-            <div className="relative w-full sm:w-80">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Buscar por cargo, empresa ou cidade..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-amber-500"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <select
-                value={deptFilter}
-                onChange={e => setDeptFilter(e.target.value)}
-                className="bg-white border border-slate-200 rounded-xl text-xs px-3 py-2 font-medium focus:outline-none"
-              >
-                <option value="Todos">Todos os Departamentos</option>
-                {uniqueDepartments.map(dept => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
-              </select>
-
-              <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-                className="bg-white border border-slate-200 rounded-xl text-xs px-3 py-2 font-medium focus:outline-none"
-              >
-                <option value="Todos">Todos os Status</option>
-                <option value="Aberta">Aberta</option>
-                <option value="Em Andamento">Em Andamento</option>
-                <option value="Pausada">Pausada</option>
-                <option value="Finalizada">Finalizada</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Vagas Cards List */}
-          <div className="space-y-4">
-            {filteredJobs.length === 0 ? (
-              <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center">
-                <Briefcase className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-                <h3 className="font-bold text-slate-800 text-sm">Nenhuma vaga encontrada</h3>
-                <p className="text-slate-400 text-xs mt-1">Crie uma nova vaga ou ajuste os filtros para visualizar resultados.</p>
-              </div>
-            ) : (
-              filteredJobs.map(job => {
-                const prazoVal = job.prazo || '30/08/2026';
-                const isSelected = selectedJob?.id === job.id;
-
-                return (
-                  <div 
-                    key={job.id} 
-                    className={`bg-white rounded-2xl border p-5 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-                      isSelected ? 'border-amber-400 ring-2 ring-amber-400/20' : 'border-slate-200'
-                    }`}
-                  >
-                    
-                    <div className="space-y-2 min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="bg-slate-900 text-amber-400 font-bold text-[10px] px-2.5 py-0.5 rounded-md uppercase tracking-wider">
-                          {job.department || 'GERAL'}
-                        </span>
-                        <span className="bg-blue-50 text-blue-700 font-semibold text-[10px] px-2.5 py-0.5 rounded-md">
-                          {job.workModel}
-                        </span>
-                        <span className="bg-slate-100 text-slate-700 font-semibold text-[10px] px-2.5 py-0.5 rounded-md">
-                          {job.type}
-                        </span>
-                        {job.status === 'Publicada' || job.active ? (
-                          <span className="bg-emerald-50 text-emerald-800 font-semibold text-[10px] px-2.5 py-0.5 rounded-md flex items-center space-x-1">
-                            <Globe className="h-3 w-3" />
-                            <span>Página Pública Ativa</span>
-                          </span>
-                        ) : job.status === 'Rascunho' ? (
-                          <span className="bg-amber-50 text-amber-800 font-semibold text-[10px] px-2.5 py-0.5 rounded-md flex items-center space-x-1">
-                            <span>Rascunho (Privado)</span>
-                          </span>
-                        ) : (
-                          <span className="bg-slate-100 text-slate-600 font-semibold text-[10px] px-2.5 py-0.5 rounded-md flex items-center space-x-1">
-                            <span>Encerrada</span>
-                          </span>
-                        )}
-                      </div>
-
-                      <h3 
-                        onClick={() => handleViewJobResumes(job)}
-                        className="font-display font-bold text-base sm:text-lg text-slate-900 hover:text-amber-600 cursor-pointer transition-colors flex items-center space-x-2 group"
-                        title="Clique para ver os currículos recebidos desta vaga"
-                      >
-                        <span>{job.title}</span>
-                        <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all" />
-                      </h3>
-
-                      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
-                        <span className="flex items-center space-x-1">
-                          <Building2 className="h-3.5 w-3.5 text-slate-400" />
-                          <span>{job.companyName || 'TechCorp'}</span>
-                        </span>
-                        <span className="flex items-center space-x-1">
-                          <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                          <span>{job.location}</span>
-                        </span>
-                        <span className="flex items-center space-x-1 font-semibold text-slate-900">
-                          <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
-                          <span>{job.salaryRange}</span>
-                        </span>
-                        <span className="flex items-center space-x-1">
-                          <Clock className="h-3.5 w-3.5 text-slate-400" />
-                          <span>Prazo: {prazoVal}</span>
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between md:justify-end gap-2 shrink-0 pt-3 md:pt-0 border-t md:border-0 border-slate-100">
-                      <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                        job.status === 'Publicada' || (job.status !== 'Rascunho' && job.status !== 'Encerrada' && job.active)
+                      <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full ${
+                        job.status === 'Publicada' || job.active
                           ? 'bg-emerald-100 text-emerald-800'
-                          : job.status === 'Rascunho'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-red-100 text-red-800'
+                          : 'bg-rose-100 text-rose-800'
                       }`}>
                         {job.status || (job.active ? 'Publicada' : 'Encerrada')}
                       </span>
+                    </div>
 
-                      {/* Ver Currículos Recebidos */}
-                      <button
-                        onClick={() => handleViewJobResumes(job)}
-                        className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs px-3.5 py-1.5 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-xs"
-                        title="Ver Currículos Recebidos desta Vaga"
-                      >
-                        <Inbox className="h-3.5 w-3.5" />
-                        <span>Currículos ({getJobCandidatesList(job.id).length})</span>
-                      </button>
+                    <div>
+                      <h3 className="font-extrabold text-base text-slate-900">{job.title}</h3>
+                      <p className="text-xs text-slate-500 font-medium flex items-center space-x-1 mt-0.5">
+                        <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                        <span>{job.location} &bull; {job.workModel}</span>
+                      </p>
+                      {job.salaryRange && (
+                        <p className="text-xs font-bold text-emerald-700 mt-1 flex items-center space-x-1">
+                          <DollarSign className="h-3.5 w-3.5" />
+                          <span>{job.salaryRange}</span>
+                        </p>
+                      )}
+                    </div>
 
-                      {/* Ver Página Pública */}
-                      <button
-                        onClick={() => setViewingPublicJob(job)}
-                        className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs px-3 py-1.5 rounded-xl transition-all flex items-center space-x-1 cursor-pointer"
-                        title="Ver Página Pública da Vaga"
-                      >
-                        <Globe className="h-3.5 w-3.5" />
-                        <span>Página Pública</span>
-                      </button>
+                    <div className="flex items-center space-x-3 text-xs text-slate-700 pt-1">
+                      <div className="bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 font-bold flex items-center space-x-1.5">
+                        <User className="h-3.5 w-3.5 text-emerald-600" />
+                        <span>{jobCandCount} inscritos</span>
+                      </div>
+                      <div className="bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 font-bold flex items-center space-x-1.5">
+                        <Calendar className="h-3.5 w-3.5 text-purple-600" />
+                        <span>{jobInterviewsCount} entrevistas</span>
+                      </div>
+                    </div>
+                  </div>
 
-                      {/* Copy Link */}
-                      <button
-                        onClick={() => handleCopyLink(job)}
-                        className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-2.5 py-1.5 rounded-xl transition-all flex items-center space-x-1 cursor-pointer"
-                        title="Copiar Link da Vaga"
-                      >
-                        {copiedId === job.id ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-slate-500" />}
-                      </button>
+                  <div className="space-y-2 pt-3 border-t border-slate-100">
+                    <button
+                      onClick={() => {
+                        setFilterJobId(job.id);
+                        setSubTab('triagem');
+                        triggerToast(`Abrindo Triagem e Pipeline para "${job.title}"`);
+                      }}
+                      className="w-full bg-slate-900 hover:bg-emerald-600 text-amber-400 hover:text-white font-extrabold text-xs py-2.5 rounded-xl transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-2xs"
+                    >
+                      <Filter className="h-4 w-4" />
+                      <span>Abrir Triagem & Pipeline (Kanban)</span>
+                    </button>
 
-                      {/* Share Modal */}
-                      <button
-                        onClick={() => setShareModalJob(job)}
-                        className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-2.5 py-1.5 rounded-xl transition-all flex items-center space-x-1 cursor-pointer"
-                        title="Compartilhar & QR Code"
-                      >
-                        <Share2 className="h-3.5 w-3.5 text-slate-600" />
-                      </button>
-
-                      {/* Analytics Modal */}
-                      <button
-                        onClick={() => setAnalyticsModalJob(job)}
-                        className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-2.5 py-1.5 rounded-xl transition-all flex items-center space-x-1 cursor-pointer"
-                        title="Análise de Desempenho e Métricas"
-                      >
-                        <BarChart3 className="h-3.5 w-3.5 text-purple-600" />
-                      </button>
-
-                      {/* Triagem IA Toggle */}
-                      <button
-                        onClick={() => setSelectedJob(isSelected ? null : job)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1 cursor-pointer ${
-                          isSelected ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        }`}
-                      >
-                        <Sparkles className="h-3.5 w-3.5" />
-                        <span>{isSelected ? 'Ocultar Triagem' : 'Triagem IA'}</span>
-                      </button>
-
-                      {/* Cancelar / Encerrar / Reabrir Vaga button */}
-                      <button
-                        onClick={() => handleToggleCancelJob(job)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1 cursor-pointer ${
-                          job.status === 'Encerrada' || job.status === 'Cancelada'
-                            ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
-                            : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
-                        }`}
-                        title={job.status === 'Encerrada' || job.status === 'Cancelada' ? 'Reabrir Vaga' : 'Cancelar / Encerrar Vaga'}
-                      >
-                        {job.status === 'Encerrada' || job.status === 'Cancelada' ? (
-                          <>
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                            <span>Reabrir</span>
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="h-3.5 w-3.5 text-rose-600" />
-                            <span>Cancelar Vaga</span>
-                          </>
-                        )}
-                      </button>
-
+                    <div className="flex items-center justify-between text-xs pt-1">
                       <div className="flex items-center space-x-1">
                         <button
                           onClick={() => openEditModal(job)}
-                          className="p-2 text-slate-500 hover:text-amber-600 hover:bg-slate-50 rounded-xl transition-all cursor-pointer"
+                          className="p-2 text-slate-600 hover:text-emerald-700 hover:bg-slate-100 rounded-lg transition-all"
                           title="Editar Vaga"
                         >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => handleDeleteJob(job.id)}
-                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-slate-50 rounded-xl transition-all cursor-pointer"
-                          title="Excluir Vaga Permanentemente"
+                          onClick={() => setShareModalJob(job)}
+                          className="p-2 text-slate-600 hover:text-blue-700 hover:bg-slate-100 rounded-lg transition-all"
+                          title="Compartilhar Link do Portal"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Share2 className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => setAnalyticsModalJob(job)}
+                          className="p-2 text-slate-600 hover:text-purple-700 hover:bg-slate-100 rounded-lg transition-all"
+                          title="Ver Indicadores da Vaga"
+                        >
+                          <BarChart3 className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => setViewingPublicJob(job)}
+                          className="p-2 text-slate-600 hover:text-amber-700 hover:bg-slate-100 rounded-lg transition-all"
+                          title="Pré-visualizar no Portal"
+                        >
+                          <Eye className="h-4 w-4" />
                         </button>
                       </div>
-                    </div>
 
+                      <button
+                        onClick={() => {
+                          const isCurrentlyActive = job.active || job.status === 'Publicada';
+                          const updated = jobs.map(j => j.id === job.id ? {
+                            ...j,
+                            active: !isCurrentlyActive,
+                            status: isCurrentlyActive ? 'Encerrada' : 'Publicada'
+                          } : j);
+                          onUpdateJobs(updated);
+                          triggerToast(`Status da vaga "${job.title}" alterado.`);
+                        }}
+                        className={`text-[11px] font-extrabold px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                          job.active || job.status === 'Publicada'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                        }`}
+                      >
+                        {job.active || job.status === 'Publicada' ? 'Pausar Vaga' : 'Ativar Vaga'}
+                      </button>
+                    </div>
                   </div>
-                );
-              })
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-in fade-in pb-12">
+
+      {renderSubNavPills()}
+
+      {/* ========================================================================= */}
+      {/* 1. TOPO DA PÁGINA (HEADER LIMPO & PROFISSIONAL) */}
+      {/* ========================================================================= */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center space-x-2">
+            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full">
+              Módulo ATS GestRH
+            </span>
+            <span className="text-slate-400 text-xs font-semibold">&bull; Inteligência Artificial Ativa</span>
+          </div>
+          <h1 className="font-display font-black text-2xl md:text-3xl text-slate-900 tracking-tight">
+            Recrutamento e Seleção
+          </h1>
+          <p className="text-xs md:text-sm text-slate-600 font-medium max-w-2xl">
+            Gerencie vagas, candidatos, entrevistas e contratações em um único lugar utilizando Inteligência Artificial.
+          </p>
+        </div>
+
+        {/* Action Buttons Right Side */}
+        <div className="flex items-center space-x-3 shrink-0">
+          <button
+            onClick={openAddModal}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs md:text-sm px-5 py-3 rounded-2xl shadow-md transition-all flex items-center space-x-2 cursor-pointer active:scale-95"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Nova Vaga</span>
+          </button>
+
+          <button
+            onClick={() => setIsAddCandidateOpen(true)}
+            className="bg-white hover:bg-slate-50 text-slate-800 font-extrabold text-xs md:text-sm px-5 py-3 rounded-2xl border border-slate-300 shadow-xs transition-all flex items-center space-x-2 cursor-pointer active:scale-95"
+          >
+            <User className="h-4 w-4 text-slate-600" />
+            <span>Cadastrar Candidato</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 2. CARDS DE INDICADORES (DASHBOARD METRICS) */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        
+        {/* Metric 1 */}
+        <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-1.5 group">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">Recebidos</span>
+            <div className="p-1.5 bg-blue-50 text-blue-600 rounded-xl group-hover:scale-110 transition-transform">
+              <Inbox className="h-4 w-4" />
+            </div>
+          </div>
+          <p className="text-xl font-extrabold text-slate-900">{totalReceived}</p>
+          <span className="text-[10px] text-slate-400 block truncate">Total de inscritos</span>
+        </div>
+
+        {/* Metric 2 */}
+        <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-1.5 group">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider truncate">Aguard. Triagem</span>
+            <div className="p-1.5 bg-amber-50 text-amber-600 rounded-xl group-hover:scale-110 transition-transform">
+              <Search className="h-4 w-4" />
+            </div>
+          </div>
+          <p className="text-xl font-extrabold text-amber-600">{awaitingTriage}</p>
+          <span className="text-[10px] text-slate-400 block truncate">Pendentes de análise</span>
+        </div>
+
+        {/* Metric 3 */}
+        <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-1.5 group">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider truncate">Em Processo</span>
+            <div className="p-1.5 bg-blue-50 text-blue-600 rounded-xl group-hover:scale-110 transition-transform">
+              <UserCheck className="h-4 w-4" />
+            </div>
+          </div>
+          <p className="text-xl font-extrabold text-blue-600">{inProcess}</p>
+          <span className="text-[10px] text-slate-400 block truncate">Etapas ativas</span>
+        </div>
+
+        {/* Metric 4 */}
+        <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-1.5 group">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider truncate">Entrevistas</span>
+            <div className="p-1.5 bg-purple-50 text-purple-600 rounded-xl group-hover:scale-110 transition-transform">
+              <Calendar className="h-4 w-4" />
+            </div>
+          </div>
+          <p className="text-xl font-extrabold text-purple-600">{scheduledInterviews}</p>
+          <span className="text-[10px] text-slate-400 block truncate">RH e Técnica</span>
+        </div>
+
+        {/* Metric 5 */}
+        <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-1.5 group">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider truncate">Propostas</span>
+            <div className="p-1.5 bg-teal-50 text-teal-600 rounded-xl group-hover:scale-110 transition-transform">
+              <Send className="h-4 w-4" />
+            </div>
+          </div>
+          <p className="text-xl font-extrabold text-teal-600">{proposalsSent}</p>
+          <span className="text-[10px] text-slate-400 block truncate">Ofertas em negociação</span>
+        </div>
+
+        {/* Metric 6 */}
+        <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-1.5 group">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider truncate">Contratações</span>
+            <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-xl group-hover:scale-110 transition-transform">
+              <CheckCircle2 className="h-4 w-4" />
+            </div>
+          </div>
+          <p className="text-xl font-extrabold text-emerald-600">{hiresCount}</p>
+          <span className="text-[10px] text-slate-400 block truncate">Admissões concluídas</span>
+        </div>
+
+        {/* Metric 7 */}
+        <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-1.5 group">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider truncate">Tempo Médio</span>
+            <div className="p-1.5 bg-slate-100 text-slate-700 rounded-xl group-hover:scale-110 transition-transform">
+              <Clock className="h-4 w-4" />
+            </div>
+          </div>
+          <p className="text-lg font-extrabold text-slate-800">{avgHiringDays}</p>
+          <span className="text-[10px] text-slate-400 block truncate">Média de fechamento</span>
+        </div>
+
+        {/* Metric 8 */}
+        <div className="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 text-white shadow-md hover:shadow-xl transition-all space-y-1.5 group">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider truncate">Analises IA</span>
+            <div className="p-1.5 bg-amber-400/20 text-amber-400 rounded-xl group-hover:scale-110 transition-transform">
+              <Sparkles className="h-4 w-4" />
+            </div>
+          </div>
+          <p className="text-xl font-extrabold text-amber-400">{aiAnalyzedCount}</p>
+          <span className="text-[10px] text-slate-300 block truncate">Triados com IA</span>
+        </div>
+
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 3. BARRA DE FILTROS RÁPIDOS & BUSCA AVANÇADA */}
+      {/* ========================================================================= */}
+      <div className="bg-white p-4 rounded-3xl border border-slate-200/90 shadow-sm space-y-3">
+        
+        {/* Top Search Input & Controls */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          
+          {/* Advanced Search Input */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Pesquisar por nome, telefone, e-mail, cargo, cidade, CPF ou empresa anterior..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs focus:outline-none focus:border-emerald-600 focus:bg-white font-medium"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
             )}
           </div>
 
-          {/* Expanded Selected Job AI Candidate Triagem Section */}
-          {selectedJob && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6 shadow-sm animate-in fade-in">
-              <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Painel de Avaliação por IA</span>
-                  <h3 className="font-display font-extrabold text-xl text-slate-900 mt-0.5">{selectedJob.title}</h3>
-                  <p className="text-xs text-slate-500">{selectedJob.department} &bull; {selectedJob.location} &bull; {selectedJob.salaryRange}</p>
-                </div>
-                <button
-                  onClick={() => setSelectedJob(null)}
-                  className="p-2 text-slate-400 hover:text-slate-600 rounded-xl bg-slate-50"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+          {/* Quick Buttons */}
+          <div className="flex items-center space-x-2 shrink-0">
+            <button
+              onClick={() => setFilterOnlyFavorites(!filterOnlyFavorites)}
+              className={`px-3.5 py-2 rounded-2xl text-xs font-extrabold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                filterOnlyFavorites
+                  ? 'bg-amber-500 text-slate-950 shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <Star className={`h-4 w-4 ${filterOnlyFavorites ? 'fill-slate-950' : 'text-amber-500'}`} />
+              <span>Favoritos</span>
+            </button>
 
-              <div>
-                <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wider mb-2">Descrição da Vaga</h4>
-                <p className="text-slate-600 text-xs whitespace-pre-line leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  {selectedJob.description}
-                </p>
-              </div>
-
-              {/* Candidates Funnel with AI Ranking */}
-              <div className="border-t border-slate-100 pt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-display font-bold text-sm text-slate-900 flex items-center space-x-2">
-                      <Sparkles className="h-4 w-4 text-emerald-600" />
-                      <span>Ranking de Triagem Inteligente de Candidatos</span>
-                    </h3>
-                    <p className="text-[10px] text-slate-400">Candidatos ranqueados e avaliados por compatibilidade técnica.</p>
-                  </div>
-                </div>
-
-                {rankedCandidates.length === 0 ? (
-                  <div className="text-center py-8 bg-slate-50 rounded-2xl border border-slate-100 border-dashed text-xs text-slate-400">
-                    Nenhum candidato cadastrado ou compatível com a área de atuação desta vaga.
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {rankedCandidates.map(cand => (
-                      <div 
-                        key={cand.id} 
-                        className={`p-4 rounded-2xl border transition-all flex flex-col md:flex-row justify-between md:items-center gap-4 ${cand.aiScore !== undefined ? 'bg-gradient-to-r from-emerald-50/20 to-slate-50 border-emerald-200' : 'bg-slate-50 border-slate-100'}`}
-                      >
-                        <div className="flex items-start space-x-3">
-                          <div className="h-9 w-9 bg-slate-200 text-slate-700 rounded-xl flex items-center justify-center font-bold text-xs shrink-0">
-                            {cand.name.charAt(0)}
-                          </div>
-                          <div>
-                            <div className="flex items-center space-x-2">
-                              <span className="font-bold text-xs text-slate-900">{cand.name}</span>
-                              <span className="text-[10px] text-slate-400 font-medium">({cand.city}-{cand.state})</span>
-                            </div>
-                            <p className="text-[11px] text-slate-600 truncate max-w-md mt-0.5 italic">"{cand.experience}"</p>
-                            
-                            {cand.aiAnalysis && (
-                              <div className="mt-2 text-[10px] text-slate-600 bg-white p-3 rounded-xl border border-slate-200 leading-relaxed whitespace-pre-line">
-                                {cand.aiAnalysis}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between md:justify-end gap-3 shrink-0 self-end md:self-center">
-                          {cand.aiScore !== undefined ? (
-                            <div className="text-center shrink-0">
-                              <span className="text-[9px] font-bold text-slate-400 block uppercase font-mono">Aderência IA</span>
-                              <div className="flex items-center justify-center mt-0.5">
-                                <Star className={`h-4 w-4 ${cand.aiScore >= 80 ? 'text-amber-500 fill-amber-500' : 'text-slate-300 fill-slate-300'}`} />
-                                <span className="text-base font-extrabold text-slate-900 ml-1">{cand.aiScore}%</span>
-                              </div>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => handleAICandidateScreening(cand)}
-                              disabled={isAnalyzing !== null}
-                              className="bg-slate-900 hover:bg-emerald-600 disabled:bg-slate-400 text-white font-semibold text-xs px-3.5 py-2 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm"
-                            >
-                              {isAnalyzing === cand.id ? (
-                                <>
-                                  <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full mr-1" />
-                                  <span>Analisando...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Sparkles className="h-3.5 w-3.5 shrink-0" />
-                                  <span>Triagem IA</span>
-                                </>
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL 1: CANDIDATE FULL RESUME & DETAILS MODAL */}
-      {/* ========================================================================= */}
-      {selectedCandidateDetail && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-2xl w-full space-y-5 border border-slate-200 shadow-2xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95">
-            
-            {/* Modal Header */}
-            <div className="flex justify-between items-start pb-4 border-b border-slate-100">
-              <div className="flex items-center space-x-3">
-                <div className="h-12 w-12 bg-slate-900 text-amber-400 font-extrabold rounded-2xl flex items-center justify-center text-lg shrink-0">
-                  {selectedCandidateDetail.name.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Perfil Completo do Candidato</span>
-                  <h3 className="font-display font-extrabold text-lg text-slate-900">{selectedCandidateDetail.name}</h3>
-                  <p className="text-xs text-slate-500">
-                    {selectedCandidateDetail.city} - {selectedCandidateDetail.state} &bull; Cadastrado em {selectedCandidateDetail.createdAt}
-                  </p>
-                </div>
-              </div>
-
-              <button 
-                onClick={() => setSelectedCandidateDetail(null)} 
-                className="text-slate-400 hover:text-slate-600 p-1"
+            <div className="bg-slate-100 p-1 rounded-2xl border border-slate-200 flex items-center space-x-1">
+              <button
+                onClick={() => setKanbanViewMode('board')}
+                className={`p-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  kanbanViewMode === 'board' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
+                }`}
+                title="Visualização Normal"
               >
-                <X className="h-5 w-5" />
+                <Maximize2 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setKanbanViewMode('compact')}
+                className={`p-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  kanbanViewMode === 'compact' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
+                }`}
+                title="Visualização Compacta"
+              >
+                <Minimize2 className="h-4 w-4" />
               </button>
             </div>
+          </div>
+        </div>
 
-            {/* Quick Status Bar & Contact Info */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
-              <div className="space-y-1">
-                <span className="font-bold text-slate-500 block text-[10px] uppercase">Contatos</span>
-                <p className="text-slate-900 font-semibold flex items-center space-x-1.5">
-                  <Mail className="h-3.5 w-3.5 text-slate-400" />
-                  <span>{selectedCandidateDetail.email}</span>
-                </p>
-                <p className="text-slate-900 font-semibold flex items-center space-x-1.5">
-                  <Phone className="h-3.5 w-3.5 text-slate-400" />
-                  <span>{selectedCandidateDetail.phone}</span>
-                </p>
-                {selectedCandidateDetail.phone && (
-                  <a
-                    href={`https://wa.me/55${selectedCandidateDetail.phone.replace(/\D/g, '')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center space-x-1 text-emerald-600 font-bold hover:underline mt-1"
-                  >
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    <span>Iniciar conversa no WhatsApp &rarr;</span>
-                  </a>
-                )}
+        {/* Dropdown Filters Row */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-2 border-t border-slate-100 text-xs">
+          
+          {/* Job Filter */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 mb-1">Vaga / Cargo</label>
+            <select
+              value={filterJobId}
+              onChange={e => setFilterJobId(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-600"
+            >
+              <option value="Todas">Todas as Vagas</option>
+              {jobs.map(j => (
+                <option key={j.id} value={j.id}>{j.title}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* City Filter */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 mb-1">Cidade</label>
+            <select
+              value={filterCity}
+              onChange={e => setFilterCity(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-600"
+            >
+              <option value="Todas">Todas as Cidades</option>
+              {cityOptions.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Work Model */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 mb-1">Modelo de Trabalho</label>
+            <select
+              value={filterWorkModel}
+              onChange={e => setFilterWorkModel(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-600"
+            >
+              <option value="Todos">Todos os Modelos</option>
+              <option value="Presencial">Presencial</option>
+              <option value="Híbrido">Híbrido</option>
+              <option value="Remoto">Remoto</option>
+            </select>
+          </div>
+
+          {/* Experience */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 mb-1">Nível de Experiência</label>
+            <select
+              value={filterExp}
+              onChange={e => setFilterExp(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-600"
+            >
+              <option value="Todas">Todos os Níveis</option>
+              <option value="Júnior">Júnior</option>
+              <option value="Pleno">Pleno</option>
+              <option value="Sênior">Sênior</option>
+              <option value="Especialista">Especialista / Gestão</option>
+            </select>
+          </div>
+
+          {/* Match IA */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 mb-1">Compatibilidade IA</label>
+            <select
+              value={filterMatchIA}
+              onChange={e => setFilterMatchIA(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-600"
+            >
+              <option value="Todos">Qualquer Match</option>
+              <option value="> 80%">Alto Match (&gt; 80%)</option>
+              <option value="> 60%">Médio Match (&gt; 60%)</option>
+              <option value="> 40%">Abaixo 60%</option>
+            </select>
+          </div>
+
+          {/* Clear Filters */}
+          <div className="flex items-end">
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setFilterJobId('Todas');
+                setFilterCity('Todas');
+                setFilterExp('Todas');
+                setFilterWorkModel('Todos');
+                setFilterMatchIA('Todos');
+                setFilterOnlyFavorites(false);
+              }}
+              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs transition-all flex items-center justify-center space-x-1 cursor-pointer"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span>Limpar Filtros</span>
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 4. PIPELINE KANBAN DO PROCESSO SELETIVO */}
+      {/* ========================================================================= */}
+      <div className="space-y-4">
+        
+        {/* Pipeline Board Header & Batch AI Screening Button */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900 text-white p-4 rounded-3xl shadow-md border border-slate-800">
+          <div className="space-y-0.5">
+            <div className="flex items-center space-x-2">
+              <span className="bg-amber-400 text-slate-950 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md">
+                Kanban ATS GestRH
+              </span>
+              <span className="text-xs text-slate-300">Arraste cards entre as colunas ou gerencie as etapas</span>
+            </div>
+            <h2 className="font-display font-black text-lg text-white">Pipeline de Candidatos</h2>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <span className="text-xs font-bold text-amber-400 mr-1">
+              {filteredCandidates.length} candidatos
+            </span>
+
+            <button
+              onClick={() => handleOpenAddColumnModal('end')}
+              className="bg-slate-800 hover:bg-slate-700 text-amber-400 font-extrabold text-xs px-3 py-2 rounded-xl border border-slate-700 transition-all flex items-center space-x-1.5 cursor-pointer shadow-xs active:scale-95"
+              title="Adicionar nova coluna ao Kanban"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Nova Coluna</span>
+            </button>
+
+            <button
+              onClick={() => setIsManageColumnsOpen(true)}
+              className="bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs px-3 py-2 rounded-xl border border-slate-700 transition-all flex items-center space-x-1.5 cursor-pointer shadow-xs active:scale-95"
+              title="Gerenciar colunas do Kanban"
+            >
+              <SlidersHorizontal className="h-4 w-4 text-slate-300" />
+              <span>Gerenciar Colunas</span>
+            </button>
+
+            <button
+              onClick={() => {
+                const unanalyzed = filteredCandidates.filter(c => c.aiScore === undefined);
+                if (unanalyzed.length === 0) {
+                  triggerToast('Todos os candidatos exibidos já passaram pela triagem da IA!');
+                  return;
+                }
+                triggerToast(`Iniciando triagem em lote para ${unanalyzed.length} candidatos...`);
+                unanalyzed.forEach((c, idx) => {
+                  setTimeout(() => handleAICandidateScreening(c), idx * 500);
+                });
+              }}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-md active:scale-95"
+            >
+              <Sparkles className="h-4 w-4" />
+              <span>Triagem IA em Lote</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Dynamic Columns Horizontal Scroll Board */}
+        <div className="flex gap-3 overflow-x-auto pb-6 pt-1 items-start scrollbar-thin">
+          {visibleStages.map((stage, stageIdx) => {
+            const stageCandidates = filteredCandidates.filter(c => getCandidateStage(c, kanbanStages) === stage.id);
+            const isOver = dragOverStage === stage.id;
+
+            return (
+              <div
+                key={stage.id}
+                onDragOver={e => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                }}
+                onDragEnter={() => setDragOverStage(stage.id)}
+                onDragLeave={() => setDragOverStage(null)}
+                onDrop={e => {
+                  e.preventDefault();
+                  const candId = e.dataTransfer.getData('text/plain');
+                  if (candId) {
+                    handleChangeCandidateStage(candId, stage.id);
+                  }
+                  setDragOverStage(null);
+                  setDraggedCandidateId(null);
+                }}
+                className={`rounded-2xl border ${stage.color} p-2.5 flex flex-col min-h-[580px] w-[260px] shrink-0 transition-all duration-200 shadow-2xs ${
+                  isOver ? 'ring-2 ring-emerald-600 bg-emerald-100/60 scale-[1.01] shadow-lg border-emerald-400' : ''
+                }`}
+              >
+                {/* Stage Header */}
+                <div className="pb-2 mb-2.5 border-b border-slate-200/80 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1.5 min-w-0">
+                      <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${stage.barColor}`} />
+                      <h3 className="font-extrabold text-[11px] tracking-tight uppercase text-slate-900 truncate" title={stage.label}>
+                        {stage.label}
+                      </h3>
+                      {stage.whenRule && (
+                        <div className="relative group/rule">
+                          <HelpCircle className="h-3.5 w-3.5 text-slate-400 hover:text-amber-600 cursor-pointer shrink-0" />
+                          <div className="absolute left-0 top-full mt-1 hidden group-hover/rule:block z-40 w-56 p-2.5 bg-slate-900 text-white text-[10px] rounded-2xl shadow-xl border border-slate-700 leading-snug">
+                            <p className="font-bold text-amber-400 mb-1 flex items-center space-x-1">
+                              <span>💡 Quando utilizar esta etapa:</span>
+                            </p>
+                            <p className="text-slate-200 font-medium">{stage.whenRule}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center space-x-1 shrink-0">
+                      <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md font-mono ${stage.badge}`}>
+                        {stageCandidates.length}
+                      </span>
+
+                      {/* Stage Menu Options Dropdown */}
+                      <div className="relative group/stagemenu">
+                        <button
+                          className="p-1 hover:bg-slate-200/80 rounded-lg text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+                          title="Opções da coluna"
+                        >
+                          <MoreVertical className="h-3.5 w-3.5" />
+                        </button>
+
+                        <div className="absolute right-0 top-full mt-1 hidden group-hover/stagemenu:block z-40 w-48 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 text-xs space-y-0.5 animate-in fade-in">
+                          <button
+                            onClick={() => handleOpenEditColumnModal(stage)}
+                            className="w-full text-left px-2.5 py-1.5 hover:bg-slate-100 rounded-xl font-bold text-slate-700 flex items-center space-x-2 cursor-pointer"
+                          >
+                            <Edit className="h-3.5 w-3.5 text-blue-600" />
+                            <span>Editar Coluna</span>
+                          </button>
+
+                          {stageIdx > 0 && (
+                            <button
+                              onClick={() => handleMoveStagePos(stageIdx, 'left')}
+                              className="w-full text-left px-2.5 py-1.5 hover:bg-slate-100 rounded-xl font-medium text-slate-700 flex items-center space-x-2 cursor-pointer"
+                            >
+                              <ArrowLeft className="h-3.5 w-3.5 text-slate-500" />
+                              <span>Mover para Esquerda</span>
+                            </button>
+                          )}
+
+                          {stageIdx < visibleStages.length - 1 && (
+                            <button
+                              onClick={() => handleMoveStagePos(stageIdx, 'right')}
+                              className="w-full text-left px-2.5 py-1.5 hover:bg-slate-100 rounded-xl font-medium text-slate-700 flex items-center space-x-2 cursor-pointer"
+                            >
+                              <ArrowRight className="h-3.5 w-3.5 text-slate-500" />
+                              <span>Mover para Direita</span>
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => handleOpenAddColumnModal(stage.id)}
+                            className="w-full text-left px-2.5 py-1.5 hover:bg-slate-100 rounded-xl font-medium text-slate-700 flex items-center space-x-2 cursor-pointer"
+                          >
+                            <Plus className="h-3.5 w-3.5 text-emerald-600" />
+                            <span>Inserir Coluna Após</span>
+                          </button>
+
+                          <div className="border-t border-slate-100 my-1" />
+
+                          <button
+                            onClick={() => handleInitRemoveColumn(stage)}
+                            className="w-full text-left px-2.5 py-1.5 hover:bg-rose-50 rounded-xl font-bold text-rose-600 flex items-center space-x-2 cursor-pointer"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                            <span>Remover Coluna</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[9px] text-slate-500">
+                    <span>
+                      {candidates.length > 0 
+                        ? `${((stageCandidates.length / candidates.length) * 100).toFixed(0)}% do total`
+                        : '0%'}
+                    </span>
+
+                    <button
+                      onClick={() => setIsAddCandidateOpen(true)}
+                      className="hover:text-emerald-700 font-bold flex items-center space-x-0.5 cursor-pointer"
+                      title="Adicionar candidato nesta coluna"
+                    >
+                      <Plus className="h-3 w-3" />
+                      <span>Cadastrar</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Candidate Cards Column Area */}
+                <div className="space-y-2.5 flex-1 overflow-y-auto max-h-[700px] pr-0.5 scrollbar-none">
+                  {stageCandidates.length === 0 ? (
+                    <div className={`text-center py-10 px-2 text-[10px] text-slate-400 border-2 border-dashed rounded-xl transition-all ${
+                      isOver ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold' : 'border-slate-200/80 bg-white/40'
+                    }`}>
+                      {isOver ? 'Solte aqui!' : 'Nenhum candidato'}
+                    </div>
+                  ) : (
+                    stageCandidates.map(c => {
+                      const phoneClean = c.phone ? c.phone.replace(/\D/g, '') : '';
+                      const waUrl = phoneClean ? `https://wa.me/55${phoneClean}` : null;
+                      const isBeingDragged = draggedCandidateId === c.id;
+
+                      return (
+                        <div
+                          key={c.id}
+                          draggable={true}
+                          onDragStart={e => {
+                            e.dataTransfer.setData('text/plain', c.id);
+                            setDraggedCandidateId(c.id);
+                          }}
+                          onDragEnd={() => setDraggedCandidateId(null)}
+                          onClick={() => handleOpenCandidateDrawer(c)}
+                          className={`bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md hover:border-emerald-500 transition-all space-y-2 cursor-pointer group active:cursor-grabbing ${
+                            isBeingDragged ? 'opacity-40 scale-95 border-emerald-600 shadow-xl ring-2 ring-emerald-500' : ''
+                          } ${kanbanViewMode === 'compact' ? 'p-2 space-y-1' : ''}`}
+                        >
+                          {/* Card Top Header */}
+                          <div className="flex items-start justify-between gap-1">
+                            <div className="flex items-center space-x-2 min-w-0">
+                              <GripVertical className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-500 shrink-0 transition-colors" />
+
+                              <div className="h-7 w-7 bg-slate-900 text-amber-400 font-black rounded-xl flex items-center justify-center shrink-0 text-xs shadow-2xs">
+                                {c.name.charAt(0).toUpperCase()}
+                              </div>
+
+                              <div className="min-w-0">
+                                <h4 className="font-extrabold text-xs text-slate-900 leading-snug truncate group-hover:text-emerald-700">
+                                  {c.name}
+                                </h4>
+                                <span className="text-[10px] text-slate-500 block truncate font-medium">
+                                  {c.city} - {c.state}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Favorite Star */}
+                            <button
+                              onClick={(e) => handleToggleFavorite(c.id, e)}
+                              className="p-1 hover:bg-slate-100 rounded-lg shrink-0 cursor-pointer"
+                              title="Favoritar"
+                            >
+                              <Star className={`h-3.5 w-3.5 ${c.isFavorite ? 'fill-amber-500 text-amber-500' : 'text-slate-300'}`} />
+                            </button>
+                          </div>
+
+                          {/* Job & Salary Badge */}
+                          <div className="bg-slate-50 text-slate-800 font-bold text-[10px] px-2 py-1 rounded-xl truncate flex items-center justify-between border border-slate-100">
+                            <span className="truncate">💼 {c.jobTitle || c.area || 'Geral'}</span>
+                            {c.aiScore !== undefined && (
+                              <span className="bg-amber-100 text-amber-900 font-extrabold text-[9px] px-1.5 py-0.2 rounded-md flex items-center space-x-0.5 shrink-0">
+                                <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
+                                <span>{c.aiScore}%</span>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Card Actions & Direct Links */}
+                          {kanbanViewMode !== 'compact' && (
+                            <div className="flex items-center justify-between text-[10px] pt-1.5 border-t border-slate-100">
+                              <div className="flex items-center space-x-1.5" onClick={e => e.stopPropagation()}>
+                                {waUrl && (
+                                  <a
+                                    href={waUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                    title="WhatsApp Direct"
+                                  >
+                                    <MessageSquare className="h-3.5 w-3.5" />
+                                  </a>
+                                )}
+                                <a
+                                  href={`mailto:${c.email}`}
+                                  className="p-1 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Enviar E-mail"
+                                >
+                                  <Mail className="h-3.5 w-3.5" />
+                                </a>
+                                <a
+                                  href={`tel:${c.phone}`}
+                                  className="p-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                  title="Ligar para candidato"
+                                >
+                                  <Phone className="h-3.5 w-3.5" />
+                                </a>
+                              </div>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setMeetingCandidate(c);
+                                  setShowSmartInterviewModule(true);
+                                }}
+                                className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-[9px] px-2 py-1 rounded-lg transition-all flex items-center space-x-1 cursor-pointer shadow-2xs"
+                                title="Entrar na Entrevista (GestRH Meeting)"
+                              >
+                                <Video className="h-3 w-3" />
+                                <span>Entrevista</span>
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Stage Stepper Dropdown */}
+                          <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100" onClick={e => e.stopPropagation()}>
+                            <button
+                              onClick={() => handleMoveCandidateStage(c.id, c.status, 'prev')}
+                              className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-900 cursor-pointer"
+                              title="Etapa anterior"
+                            >
+                              <ArrowLeft className="h-3 w-3" />
+                            </button>
+
+                            <select
+                              value={getCandidateStage(c, kanbanStages)}
+                              onChange={e => handleChangeCandidateStage(c.id, e.target.value)}
+                              className="text-[9px] bg-slate-50 border border-slate-200 rounded-lg px-1 py-0.5 font-extrabold text-slate-800 focus:outline-none"
+                            >
+                              {visibleStages.map(s => (
+                                <option key={s.id} value={s.id}>{s.label}</option>
+                              ))}
+                            </select>
+
+                            <button
+                              onClick={() => handleMoveCandidateStage(c.id, c.status, 'next')}
+                              className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-900 cursor-pointer"
+                              title="Próxima etapa"
+                            >
+                              <ArrowRight className="h-3 w-3" />
+                            </button>
+                          </div>
+
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
               </div>
+            );
+          })}
 
-              <div className="space-y-1 sm:border-l sm:border-slate-200 sm:pl-3">
-                <span className="font-bold text-slate-500 block text-[10px] uppercase">Vaga & Etapa Atual</span>
-                <p className="text-slate-900 font-bold">
-                  💼 {selectedCandidateDetail.jobTitle || selectedCandidateDetail.area || 'Geral'}
-                </p>
-                <div className="pt-1 flex items-center space-x-2">
-                  <span className="text-[11px] text-slate-600 font-semibold">Alterar Etapa:</span>
+          {/* End Shortcut Card - Add Column */}
+          <button
+            onClick={() => handleOpenAddColumnModal('end')}
+            className="rounded-2xl border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-slate-50/50 hover:bg-emerald-50/30 p-4 flex flex-col items-center justify-center min-h-[580px] w-[200px] shrink-0 transition-all duration-200 group cursor-pointer text-slate-500 hover:text-emerald-700 space-y-2"
+          >
+            <div className="p-3 bg-white group-hover:bg-emerald-600 group-hover:text-white rounded-2xl border border-slate-200 shadow-2xs transition-all group-hover:scale-110">
+              <Plus className="h-6 w-6" />
+            </div>
+            <span className="font-extrabold text-xs">Nova Coluna</span>
+            <span className="text-[10px] text-slate-400 text-center max-w-[140px]">
+              Adicionar etapa personalizada ao fluxo de seleção
+            </span>
+          </button>
+        </div>
+
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 5. SEÇÃO DE VAGAS (TODAS AS VAGAS NO FINAL DA PÁGINA) */}
+      {/* ========================================================================= */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div>
+            <h2 className="font-display font-extrabold text-xl text-slate-900 flex items-center space-x-2">
+              <Briefcase className="h-5 w-5 text-emerald-600" />
+              <span>Vagas de Emprego em Aberto</span>
+            </h2>
+            <p className="text-xs text-slate-500">
+              Acompanhe o desempenho e clique para filtrar o Pipeline Kanban especificamente para cada vaga.
+            </p>
+          </div>
+
+          <button
+            onClick={openAddModal}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-xs self-start sm:self-auto"
+          >
+            <Plus className="h-4 w-4" />
+            <span>+ Nova Vaga</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {jobs.map(job => {
+            const jobCandCount = candidates.filter(c => c.jobId === job.id || (
+              !c.jobId && (c.area === job.department || (job.department === 'TI' && c.area === 'TI'))
+            )).length;
+
+            const jobInterviewsCount = candidates.filter(c => {
+              const isJobMatch = c.jobId === job.id || (!c.jobId && c.area === job.department);
+              const st = getCandidateStage(c);
+              return isJobMatch && (st === 'Entrevista RH' || st === 'Entrevista Técnica');
+            }).length;
+
+            return (
+              <div
+                key={job.id}
+                className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200 hover:border-emerald-500 transition-all space-y-3 shadow-2xs hover:shadow-md"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-slate-200 text-slate-800">
+                      {job.department}
+                    </span>
+                    <h3 className="font-extrabold text-sm text-slate-900 mt-1">{job.title}</h3>
+                    <p className="text-xs text-slate-500">{job.location} &bull; {job.workModel}</p>
+                  </div>
+
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                    job.status === 'Publicada' || job.active
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-rose-100 text-rose-800'
+                  }`}>
+                    {job.status || (job.active ? 'Publicada' : 'Encerrada')}
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-3 text-xs text-slate-700 pt-1">
+                  <div className="bg-white px-2.5 py-1 rounded-xl border border-slate-200 font-bold flex items-center space-x-1">
+                    <User className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>{jobCandCount} inscritos</span>
+                  </div>
+                  <div className="bg-white px-2.5 py-1 rounded-xl border border-slate-200 font-bold flex items-center space-x-1">
+                    <Calendar className="h-3.5 w-3.5 text-purple-600" />
+                    <span>{jobInterviewsCount} entrevistas</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                  <button
+                    onClick={() => {
+                      setFilterJobId(job.id);
+                      window.scrollTo({ top: 400, behavior: 'smooth' });
+                      triggerToast(`Pipeline filtrado para a vaga "${job.title}"`);
+                    }}
+                    className="bg-slate-900 hover:bg-emerald-600 text-amber-400 hover:text-white font-extrabold text-xs px-3 py-1.5 rounded-xl transition-all flex items-center space-x-1 cursor-pointer"
+                  >
+                    <Filter className="h-3.5 w-3.5" />
+                    <span>Abrir no Pipeline</span>
+                  </button>
+
+                  <div className="flex items-center space-x-1">
+                    <button
+                      onClick={() => openEditModal(job)}
+                      className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors"
+                      title="Editar Vaga"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setViewingPublicJob(job)}
+                      className="p-1.5 hover:bg-slate-200 rounded-lg text-blue-600 transition-colors"
+                      title="Ver Página Pública"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 6. PAINEL LATERAL COMPLETO DO CANDIDATO (DRAWER LATERAL) */}
+      {/* ========================================================================= */}
+      {drawerCandidate && (
+        <div className="fixed inset-0 z-50 overflow-hidden animate-in fade-in">
+          {/* Backdrop */}
+          <div
+            onClick={() => setDrawerCandidate(null)}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+          />
+
+          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+            <div className="w-screen max-w-2xl bg-white shadow-2xl border-l border-slate-200 flex flex-col">
+              
+              {/* Drawer Top Header */}
+              <div className="bg-slate-900 text-white p-5 flex items-start justify-between border-b border-slate-800 shrink-0">
+                <div className="flex items-start space-x-3.5">
+                  <div className="h-12 w-12 bg-amber-400 text-slate-950 font-black rounded-2xl flex items-center justify-center text-lg shrink-0 shadow-md">
+                    {drawerCandidate.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="font-display font-extrabold text-lg text-white">{drawerCandidate.name}</h3>
+                      <button
+                        onClick={(e) => handleToggleFavorite(drawerCandidate.id, e)}
+                        className="p-1 hover:bg-slate-800 rounded-lg cursor-pointer"
+                      >
+                        <Star className={`h-4 w-4 ${drawerCandidate.isFavorite ? 'fill-amber-400 text-amber-400' : 'text-slate-500'}`} />
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-300">
+                      💼 {drawerCandidate.jobTitle || drawerCandidate.area} &bull; {drawerCandidate.city} - {drawerCandidate.state}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Cadastrado em {drawerCandidate.createdAt} &bull; Salário esperado: {drawerCandidate.salaryExpectation || drawerCandidate.expectedSalary || 'R$ 8.000,00'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
                   <select
-                    value={getCandidateStage(selectedCandidateDetail)}
-                    onChange={e => handleChangeCandidateStage(selectedCandidateDetail.id, e.target.value)}
-                    className="bg-white border border-slate-200 rounded-lg text-xs px-2 py-1 font-bold text-slate-800"
+                    value={getCandidateStage(drawerCandidate)}
+                    onChange={e => handleChangeCandidateStage(drawerCandidate.id, e.target.value)}
+                    className="bg-slate-800 border border-slate-700 text-white text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-none"
                   >
                     {KANBAN_STAGES.map(s => (
                       <option key={s.id} value={s.id}>{s.label}</option>
                     ))}
                   </select>
+
+                  <button
+                    onClick={() => setDrawerCandidate(null)}
+                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl cursor-pointer"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
                 </div>
               </div>
-            </div>
 
-            {/* AI Triagem Score & Analysis */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wider flex items-center space-x-1.5">
-                  <Sparkles className="h-4 w-4 text-emerald-600" />
-                  <span>Avaliação por Inteligência Artificial</span>
-                </h4>
-
+              {/* Drawer Navigation Tabs Bar */}
+              <div className="flex items-center space-x-1 bg-slate-100 p-2 overflow-x-auto border-b border-slate-200 shrink-0 text-xs scrollbar-none">
                 <button
-                  onClick={() => handleAICandidateScreening(selectedCandidateDetail)}
-                  disabled={isAnalyzing === selectedCandidateDetail.id}
-                  className="bg-slate-900 hover:bg-emerald-600 disabled:bg-slate-400 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition-all flex items-center space-x-1 cursor-pointer"
+                  onClick={() => setDrawerTab('resumo')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer shrink-0 ${
+                    drawerTab === 'resumo' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Resumo
+                </button>
+                <button
+                  onClick={() => setDrawerTab('triagem')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer shrink-0 ${
+                    drawerTab === 'triagem' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Triagem RH
+                </button>
+                <button
+                  onClick={() => setDrawerTab('acoes')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer shrink-0 ${
+                    drawerTab === 'acoes' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Ações Rápidas
+                </button>
+                <button
+                  onClick={() => setDrawerTab('ia')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer shrink-0 flex items-center space-x-1 ${
+                    drawerTab === 'ia' ? 'bg-slate-900 text-amber-400 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  <span>{isAnalyzing === selectedCandidateDetail.id ? 'Analisando...' : 'Re-executar IA'}</span>
+                  <span>Avaliação IA</span>
+                </button>
+                <button
+                  onClick={() => setDrawerTab('curriculo')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer shrink-0 ${
+                    drawerTab === 'curriculo' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Currículo
+                </button>
+                <button
+                  onClick={() => setDrawerTab('portfolio')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer shrink-0 ${
+                    drawerTab === 'portfolio' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Portfólio / Vídeo
+                </button>
+                <button
+                  onClick={() => setDrawerTab('experiencias')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer shrink-0 ${
+                    drawerTab === 'experiencias' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Competências
+                </button>
+                <button
+                  onClick={() => setDrawerTab('entrevistas')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer shrink-0 ${
+                    drawerTab === 'entrevistas' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Entrevistas 🎥
+                </button>
+                <button
+                  onClick={() => setDrawerTab('anotacoes')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer shrink-0 ${
+                    drawerTab === 'anotacoes' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Anotações
                 </button>
               </div>
 
-              {selectedCandidateDetail.aiScore !== undefined ? (
-                <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200 space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Star className="h-5 w-5 fill-amber-500 text-amber-500" />
-                    <span className="font-extrabold text-lg text-slate-900">{selectedCandidateDetail.aiScore}% de Compatibilidade</span>
-                  </div>
-                  <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line bg-white p-3 rounded-xl border border-emerald-100">
-                    {selectedCandidateDetail.aiAnalysis}
-                  </p>
-                </div>
-              ) : (
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center text-xs text-slate-500">
-                  Candidato ainda não passou pela triagem IA. Clique no botão acima para analisar a compatibilidade com a vaga.
-                </div>
-              )}
-            </div>
+              {/* Drawer Main Content */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-5 text-xs text-slate-800">
 
-            {/* Resume / Experience Text */}
-            <div className="space-y-2">
-              <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wider flex items-center space-x-1.5">
-                <FileText className="h-4 w-4 text-amber-500" />
-                <span>Currículo & Resumo Profissional</span>
-              </h4>
+                {/* TAB: RESUMO DO CANDIDATO */}
+                {drawerTab === 'resumo' && (
+                  <div className="space-y-4 animate-in fade-in">
+                    
+                    {/* Contact Channels Card */}
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                      <h4 className="font-extrabold text-xs uppercase text-slate-700 tracking-wider">Canais de Contato Direto</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {drawerCandidate.phone && (
+                          <a
+                            href={`https://wa.me/55${drawerCandidate.phone.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold p-2.5 rounded-xl flex items-center justify-center space-x-1.5 shadow-xs cursor-pointer"
+                          >
+                            <MessageSquare className="h-4 w-4" />
+                            <span>WhatsApp</span>
+                          </a>
+                        )}
 
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs text-slate-800 space-y-3">
-                <p className="whitespace-pre-line leading-relaxed font-sans">
-                  {selectedCandidateDetail.resumeText || selectedCandidateDetail.experience}
-                </p>
+                        <a
+                          href={`mailto:${drawerCandidate.email}`}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold p-2.5 rounded-xl flex items-center justify-center space-x-1.5 shadow-xs cursor-pointer"
+                        >
+                          <Mail className="h-4 w-4" />
+                          <span>E-mail</span>
+                        </a>
 
-                {selectedCandidateDetail.resumeUrl && (
-                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
-                    <span className="font-semibold text-slate-600">Arquivo Anexo do Currículo:</span>
-                    <a
-                      href={`#`}
-                      onClick={(e) => { e.preventDefault(); alert('Download de arquivo em ambiente de demonstração.'); }}
-                      className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-xl transition-all flex items-center space-x-1"
-                    >
-                      <Upload className="h-3.5 w-3.5" />
-                      <span>Baixar Currículo (PDF/DOCX)</span>
-                    </a>
+                        <a
+                          href={`tel:${drawerCandidate.phone}`}
+                          className="bg-slate-800 hover:bg-slate-900 text-white font-extrabold p-2.5 rounded-xl flex items-center justify-center space-x-1.5 shadow-xs cursor-pointer"
+                        >
+                          <Phone className="h-4 w-4" />
+                          <span>Telefone</span>
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Quick Bio Info */}
+                    <div className="grid grid-cols-2 gap-3 bg-white p-4 rounded-2xl border border-slate-200">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block">E-mail</span>
+                        <span className="font-bold text-slate-900">{drawerCandidate.email}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Telefone</span>
+                        <span className="font-bold text-slate-900">{drawerCandidate.phone}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Cidade / UF</span>
+                        <span className="font-bold text-slate-900">{drawerCandidate.city} - {drawerCandidate.state}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Experiência</span>
+                        <span className="font-bold text-slate-900">{drawerCandidate.experience}</span>
+                      </div>
+                    </div>
+
+                    {/* Quick Action Button to Enter Meeting */}
+                    <div className="bg-gradient-to-r from-slate-900 to-purple-950 p-4 rounded-2xl text-white flex items-center justify-between">
+                      <div>
+                        <span className="text-amber-400 text-[10px] font-extrabold uppercase block">GestRH Meeting Integração</span>
+                        <h4 className="font-extrabold text-sm text-white">Pronto para entrevistar este candidato?</h4>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setMeetingCandidate(drawerCandidate);
+                          setShowSmartInterviewModule(true);
+                        }}
+                        className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-4 py-2.5 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-md"
+                      >
+                        <Video className="h-4 w-4" />
+                        <span>Entrar na Entrevista</span>
+                      </button>
+                    </div>
+
                   </div>
                 )}
-              </div>
-            </div>
 
-            {/* Recruiter Notes / Anotações */}
-            <div className="space-y-2">
-              <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wider">Anotações Internas do Recrutador</h4>
-              <textarea
-                rows={3}
-                placeholder="Escreva observações da entrevista, feedbacks de gestores ou pretensão salarial negociada..."
-                value={candidateNoteInput}
-                onChange={e => setCandidateNoteInput(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs focus:outline-none focus:border-amber-500"
-              />
-              <div className="flex justify-end">
+                {/* TAB: TRIAGEM DO CANDIDATO (ESTRUTURADA) */}
+                {drawerTab === 'triagem' && (
+                  <div className="space-y-4 animate-in fade-in">
+                    <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-200 space-y-1">
+                      <h4 className="font-extrabold text-xs text-emerald-900 uppercase">Formulário Oficial de Triagem RH</h4>
+                      <p className="text-[11px] text-emerald-800">Preencha a avaliação criteriosa do candidato antes de avançar de etapa.</p>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-4">
+                      
+                      {/* Rating & Compatibility */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-extrabold text-slate-700 mb-1">Avaliação Geral (1 a 5 Estrelas)</label>
+                          <div className="flex items-center space-x-1">
+                            {[1, 2, 3, 4, 5].map(star => (
+                              <button
+                                key={star}
+                                type="button"
+                                onClick={() => setScreeningData(prev => ({ ...prev, generalRating: star }))}
+                                className="p-1 text-amber-500 hover:scale-125 transition-transform cursor-pointer"
+                              >
+                                <Star className={`h-6 w-6 ${star <= screeningData.generalRating ? 'fill-amber-500' : 'text-slate-300'}`} />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block font-extrabold text-slate-700 mb-1">Compatibilidade IA (0 - 100%)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={screeningData.iaCompatibility}
+                            onChange={e => setScreeningData(prev => ({ ...prev, iaCompatibility: Number(e.target.value) }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold text-slate-900"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Dropdown Criteria */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-extrabold text-slate-700 mb-1">Nível de Experiência</label>
+                          <select
+                            value={screeningData.experienceLevel}
+                            onChange={e => setScreeningData(prev => ({ ...prev, experienceLevel: e.target.value as any }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold"
+                          >
+                            <option value="Excelente">Excelente</option>
+                            <option value="Boa">Boa</option>
+                            <option value="Regular">Regular</option>
+                            <option value="Baixa">Baixa</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block font-extrabold text-slate-700 mb-1">Escolaridade / Formação</label>
+                          <select
+                            value={screeningData.educationLevel}
+                            onChange={e => setScreeningData(prev => ({ ...prev, educationLevel: e.target.value as any }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold"
+                          >
+                            <option value="Compatível">Compatível</option>
+                            <option value="Parcial">Parcial</option>
+                            <option value="Não Compatível">Não Compatível</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block font-extrabold text-slate-700 mb-1">Conhecimento Técnico</label>
+                          <select
+                            value={screeningData.techKnowledge}
+                            onChange={e => setScreeningData(prev => ({ ...prev, techKnowledge: e.target.value as any }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold"
+                          >
+                            <option value="Excelente">Excelente</option>
+                            <option value="Bom">Bom</option>
+                            <option value="Regular">Regular</option>
+                            <option value="Baixo">Baixo</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block font-extrabold text-slate-700 mb-1">Comunicação & Postura</label>
+                          <select
+                            value={screeningData.communicationLevel}
+                            onChange={e => setScreeningData(prev => ({ ...prev, communicationLevel: e.target.value as any }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold"
+                          >
+                            <option value="Excelente">Excelente</option>
+                            <option value="Boa">Boa</option>
+                            <option value="Regular">Regular</option>
+                            <option value="Ruim">Ruim</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-extrabold text-slate-700 mb-1">Disponibilidade de Início</label>
+                          <select
+                            value={screeningData.availability}
+                            onChange={e => setScreeningData(prev => ({ ...prev, availability: e.target.value as any }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold"
+                          >
+                            <option value="Imediata">Imediata</option>
+                            <option value="15 dias">15 dias</option>
+                            <option value="30 dias">30 dias</option>
+                            <option value="Outro">Outro</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block font-extrabold text-slate-700 mb-1">Pretensão Salarial</label>
+                          <input
+                            type="text"
+                            value={screeningData.expectedSalary}
+                            onChange={e => setScreeningData(prev => ({ ...prev, expectedSalary: e.target.value }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-bold"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block font-extrabold text-slate-700 mb-1">Comentários do Recrutador RH</label>
+                        <textarea
+                          rows={3}
+                          value={screeningData.rhComments}
+                          onChange={e => setScreeningData(prev => ({ ...prev, rhComments: e.target.value }))}
+                          placeholder="Análise de perfil, pontos positivos e impressões da entrevista prévia..."
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-extrabold text-slate-700 mb-1">Anotações Privadas (Invisível ao candidato)</label>
+                        <textarea
+                          rows={2}
+                          value={screeningData.privateNotes}
+                          onChange={e => setScreeningData(prev => ({ ...prev, privateNotes: e.target.value }))}
+                          placeholder="Observações de negociação ou restrições internas..."
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5"
+                        />
+                      </div>
+
+                      <button
+                        onClick={handleSaveScreening}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-2xl shadow-md transition-all cursor-pointer text-xs"
+                      >
+                        Salvar Triagem Estruturada
+                      </button>
+
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB: AÇÕES RÁPIDAS */}
+                {drawerTab === 'acoes' && (
+                  <div className="space-y-4 animate-in fade-in">
+                    <h4 className="font-extrabold text-xs uppercase text-slate-700 tracking-wider">Ações Rápidas do Processo Seletivo</h4>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <button
+                        onClick={() => handleChangeCandidateStage(drawerCandidate.id, 'Triagem RH')}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold p-3 rounded-2xl flex items-center justify-between cursor-pointer"
+                      >
+                        <span>Mover p/ Triagem RH</span>
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+
+                      <button
+                        onClick={() => handleChangeCandidateStage(drawerCandidate.id, 'Entrevista RH')}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold p-3 rounded-2xl flex items-center justify-between cursor-pointer"
+                      >
+                        <span>Mover p/ Entrevista RH</span>
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+
+                      <button
+                        onClick={() => handleChangeCandidateStage(drawerCandidate.id, 'Entrevista Técnica')}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold p-3 rounded-2xl flex items-center justify-between cursor-pointer"
+                      >
+                        <span>Mover p/ Entrevista Técnica</span>
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+
+                      <button
+                        onClick={() => handleChangeCandidateStage(drawerCandidate.id, 'Teste')}
+                        className="bg-cyan-600 hover:bg-cyan-700 text-white font-extrabold p-3 rounded-2xl flex items-center justify-between cursor-pointer"
+                      >
+                        <span>Enviar Teste Prático</span>
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setMeetingCandidate(drawerCandidate);
+                          setShowSmartInterviewModule(true);
+                        }}
+                        className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-black p-3 rounded-2xl flex items-center justify-between cursor-pointer"
+                      >
+                        <span>Agendar / Entrar na Entrevista</span>
+                        <Video className="h-4 w-4" />
+                      </button>
+
+                      <button
+                        onClick={() => handleChangeCandidateStage(drawerCandidate.id, 'Proposta')}
+                        className="bg-teal-600 hover:bg-teal-700 text-white font-extrabold p-3 rounded-2xl flex items-center justify-between cursor-pointer"
+                      >
+                        <span>Enviar Proposta / Oferta</span>
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+
+                      <button
+                        onClick={() => handleChangeCandidateStage(drawerCandidate.id, 'Contratação')}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-black p-3 rounded-2xl flex items-center justify-between cursor-pointer shadow-md"
+                      >
+                        <span>Aprovar & Contratar</span>
+                        <CheckCircle2 className="h-4 w-4" />
+                      </button>
+
+                      <button
+                        onClick={() => handleChangeCandidateStage(drawerCandidate.id, 'Banco de Talentos')}
+                        className="bg-purple-800 hover:bg-purple-900 text-white font-extrabold p-3 rounded-2xl flex items-center justify-between cursor-pointer"
+                      >
+                        <span>Guardar no Banco de Talentos</span>
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+
+                      <button
+                        onClick={() => handleChangeCandidateStage(drawerCandidate.id, 'Reprovados')}
+                        className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold p-3 rounded-2xl flex items-center justify-between cursor-pointer col-span-1 sm:col-span-2"
+                      >
+                        <span>Reprovar Candidato</span>
+                        <XCircle className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB: PAINEL DE IA */}
+                {drawerTab === 'ia' && (
+                  <div className="space-y-4 animate-in fade-in">
+                    <div className="flex items-center justify-between bg-slate-900 text-white p-4 rounded-2xl">
+                      <div className="flex items-center space-x-2">
+                        <Sparkles className="h-5 w-5 text-amber-400" />
+                        <h4 className="font-extrabold text-sm text-white">Análise Preditiva de IA</h4>
+                      </div>
+
+                      <button
+                        onClick={() => handleAICandidateScreening(drawerCandidate)}
+                        disabled={isAnalyzing === drawerCandidate.id}
+                        className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl cursor-pointer"
+                      >
+                        {isAnalyzing === drawerCandidate.id ? 'Analisando...' : 'Re-Analisar com IA'}
+                      </button>
+                    </div>
+
+                    <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-sm text-amber-950">Pontuação de Compatibilidade</span>
+                        <span className="text-xl font-black text-amber-600">{drawerCandidate.aiScore || 88}% Match</span>
+                      </div>
+
+                      <p className="text-xs text-amber-900 leading-relaxed bg-white p-3 rounded-xl border border-amber-100">
+                        {drawerCandidate.aiAnalysis || drawerCandidate.aiInsights?.summary || 'Candidato com forte aderência técnica às demandas da posição. Excelente comunicação e trajetória profissional contínua.'}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-emerald-50 p-3 rounded-2xl border border-emerald-200">
+                        <span className="font-extrabold text-emerald-900 text-[10px] uppercase block mb-1">Pontos Fortes</span>
+                        <ul className="list-disc list-inside text-emerald-800 text-[11px] space-y-1 font-medium">
+                          <li>Sólida bagagem técnica</li>
+                          <li>Pretensão alinhada à vaga</li>
+                          <li>Boa comunicação interpessoal</li>
+                        </ul>
+                      </div>
+
+                      <div className="bg-rose-50 p-3 rounded-2xl border border-rose-200">
+                        <span className="font-extrabold text-rose-900 text-[10px] uppercase block mb-1">Pontos de Atenção</span>
+                        <ul className="list-disc list-inside text-rose-800 text-[11px] space-y-1 font-medium">
+                          <li>Aprofundar testes de inglês</li>
+                          <li>Verificar disponibilidade de viagens</li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2">
+                      <span className="font-extrabold text-xs uppercase text-slate-700">Sugestão de Perguntas p/ Entrevista (IA)</span>
+                      <ol className="list-decimal list-inside text-xs text-slate-700 space-y-1.5 font-medium">
+                        <li>Conte sobre um projeto desafiador que você liderou e como lidou com prazos curtos.</li>
+                        <li>Como você lida com divergências técnicas com outros membros da equipe?</li>
+                        <li>Qual o seu principal objetivo de aprendizado para os próximos 12 meses?</li>
+                      </ol>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB: CURRÍCULO */}
+                {drawerTab === 'curriculo' && (
+                  <div className="space-y-4 animate-in fade-in">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-extrabold text-xs uppercase text-slate-700">Currículo Formatado</h4>
+                      <button
+                        onClick={() => alert('Download do currículo em formato PDF/DOCX')}
+                        className="bg-emerald-600 text-white font-extrabold text-xs px-3 py-1.5 rounded-xl cursor-pointer"
+                      >
+                        Baixar PDF
+                      </button>
+                    </div>
+
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 font-sans leading-relaxed whitespace-pre-line text-xs text-slate-800">
+                      {drawerCandidate.resumeText || drawerCandidate.experience || 'Currículo completo não informado.'}
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB: PORTFÓLIO E VÍDEO */}
+                {drawerTab === 'portfolio' && (
+                  <div className="space-y-4 animate-in fade-in">
+                    <h4 className="font-extrabold text-xs uppercase text-slate-700">Links & Apresentações</h4>
+
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
+                      {drawerCandidate.linkedinUrl ? (
+                        <a href={drawerCandidate.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-bold block">
+                          🌐 Perfil no LinkedIn
+                        </a>
+                      ) : (
+                        <span className="text-slate-500 block">LinkedIn: linkedin.com/in/candidato</span>
+                      )}
+
+                      {drawerCandidate.portfolioUrl ? (
+                        <a href={drawerCandidate.portfolioUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline font-bold block">
+                          🎨 Portfólio / GitHub
+                        </a>
+                      ) : (
+                        <span className="text-slate-500 block">Portfólio: github.com/candidato</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB: EXPERIÊNCIAS */}
+                {drawerTab === 'experiencias' && (
+                  <div className="space-y-4 animate-in fade-in">
+                    <h4 className="font-extrabold text-xs uppercase text-slate-700">Histórico Profissional e Competências</h4>
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                      <span className="font-extrabold text-slate-900 block">{drawerCandidate.experience}</span>
+                      <p className="text-slate-600 text-xs">Empresas anteriores e realizações destacadas no mercado de trabalho.</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB: ENTREVISTAS */}
+                {drawerTab === 'entrevistas' && (
+                  <div className="space-y-4 animate-in fade-in">
+                    <div className="bg-purple-50 p-4 rounded-2xl border border-purple-200 flex items-center justify-between">
+                      <div>
+                        <h4 className="font-extrabold text-purple-900">GestRH Meeting Sala Online</h4>
+                        <p className="text-purple-800 text-xs">Realize a videoconferência diretamente na plataforma.</p>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          setMeetingCandidate(drawerCandidate);
+                          setShowSmartInterviewModule(true);
+                        }}
+                        className="bg-purple-700 hover:bg-purple-800 text-white font-extrabold px-4 py-2 rounded-xl text-xs cursor-pointer shadow-md"
+                      >
+                        Entrar na Reunião
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB: ANOTAÇÕES */}
+                {drawerTab === 'anotacoes' && (
+                  <div className="space-y-4 animate-in fade-in">
+                    <h4 className="font-extrabold text-xs uppercase text-slate-700">Anotações do Recrutador</h4>
+                    <textarea
+                      rows={5}
+                      value={screeningData.rhComments}
+                      onChange={e => setScreeningData(prev => ({ ...prev, rhComments: e.target.value }))}
+                      placeholder="Anote impressões da entrevista ou histórico de contatos..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3"
+                    />
+                    <button
+                      onClick={handleSaveScreening}
+                      className="bg-slate-900 text-white font-extrabold px-4 py-2 rounded-xl text-xs cursor-pointer"
+                    >
+                      Salvar Anotações
+                    </button>
+                  </div>
+                )}
+
+              </div>
+
+              {/* Drawer Footer Actions */}
+              <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
                 <button
-                  onClick={() => handleSaveCandidateNotes(selectedCandidateDetail.id)}
-                  className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all cursor-pointer"
+                  onClick={() => handleDeleteCandidate(drawerCandidate.id)}
+                  className="text-rose-600 hover:underline font-extrabold text-xs flex items-center space-x-1 cursor-pointer"
                 >
-                  Salvar Anotações
+                  <Trash2 className="h-4 w-4" />
+                  <span>Excluir Candidato</span>
+                </button>
+
+                <button
+                  onClick={() => setDrawerCandidate(null)}
+                  className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-extrabold text-xs px-5 py-2.5 rounded-xl cursor-pointer"
+                >
+                  Fechar Painel
                 </button>
               </div>
+
             </div>
-
-            {/* Footer Buttons */}
-            <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
-              <button
-                onClick={() => handleDeleteCandidate(selectedCandidateDetail.id)}
-                className="text-rose-600 hover:underline font-bold text-xs flex items-center space-x-1"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>Excluir Candidato</span>
-              </button>
-
-              <button
-                onClick={() => setSelectedCandidateDetail(null)}
-                className="bg-slate-100 text-slate-700 font-bold text-xs px-5 py-2.5 rounded-xl hover:bg-slate-200"
-              >
-                Fechar
-              </button>
-            </div>
-
           </div>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 2: CADASTRAR CURRÍCULO MANUALLY */}
+      {/* 7. MODAIS (CADASTRAR CANDIDATO & CRIAR/EDITAR VAGA) */}
       {/* ========================================================================= */}
+
+      {/* MODAL CADASTRAR CANDIDATO */}
       {isAddCandidateOpen && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full space-y-4 border border-slate-200 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full space-y-4 border border-slate-200 shadow-2xl max-h-[90vh] overflow-y-auto">
             
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-base text-slate-900 flex items-center space-x-2">
-                <Inbox className="h-5 w-5 text-amber-500" />
-                <span>Cadastrar Novo Currículo / Candidato</span>
+              <h3 className="font-extrabold text-base text-slate-900 flex items-center space-x-2">
+                <User className="h-5 w-5 text-emerald-600" />
+                <span>Cadastrar Novo Candidato</span>
               </h3>
               <button onClick={() => setIsAddCandidateOpen(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="h-5 w-5" />
@@ -1989,7 +2714,7 @@ export default function RecruitmentModule({
                   placeholder="Ex: Carlos Eduardo Silva"
                   value={newCandName}
                   onChange={e => setNewCandName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600"
                 />
               </div>
 
@@ -2002,7 +2727,7 @@ export default function RecruitmentModule({
                     placeholder="carlos@gmail.com"
                     value={newCandEmail}
                     onChange={e => setNewCandEmail(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600"
                   />
                 </div>
                 <div>
@@ -2012,7 +2737,7 @@ export default function RecruitmentModule({
                     placeholder="(11) 98888-7777"
                     value={newCandPhone}
                     onChange={e => setNewCandPhone(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600"
                   />
                 </div>
               </div>
@@ -2025,7 +2750,7 @@ export default function RecruitmentModule({
                     placeholder="São Paulo"
                     value={newCandCity}
                     onChange={e => setNewCandCity(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600"
                   />
                 </div>
                 <div>
@@ -2033,75 +2758,62 @@ export default function RecruitmentModule({
                   <input
                     type="text"
                     placeholder="SP"
-                    maxLength={2}
                     value={newCandState}
                     onChange={e => setNewCandState(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs uppercase focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Vaga Vinculada</label>
-                  <select
-                    value={newCandJobId}
-                    onChange={e => setNewCandJobId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none"
-                  >
-                    <option value="">Nenhuma (Banco de Talentos)</option>
-                    {jobs.map(j => (
-                      <option key={j.id} value={j.id}>{j.title}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Pretensão Salarial</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: R$ 6.000,00"
-                    value={newCandSalary}
-                    onChange={e => setNewCandSalary(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600 uppercase"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Resumo da Experiência</label>
+                <label className="block font-bold text-slate-700 mb-1">Vaga Vinculada</label>
+                <select
+                  value={newCandJobId}
+                  onChange={e => setNewCandJobId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600"
+                >
+                  <option value="">Nenhuma (Banco de Talentos Geral)</option>
+                  {jobs.map(j => (
+                    <option key={j.id} value={j.id}>{j.title} - {j.department}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Pretensão Salarial</label>
                 <input
                   type="text"
-                  placeholder="Ex: Desenvolvedor React com 4 anos de experiência em startups fintechs."
-                  value={newCandExperience}
-                  onChange={e => setNewCandExperience(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-amber-500"
+                  placeholder="R$ 8.000,00"
+                  value={newCandSalary}
+                  onChange={e => setNewCandSalary(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Texto do Currículo / Habilidades</label>
+                <label className="block font-bold text-slate-700 mb-1">Texto do Currículo / Resumo Profissional</label>
                 <textarea
                   rows={4}
-                  placeholder="Cole aqui o texto do currículo, histórico de empresas, formação e conhecimentos..."
+                  placeholder="Cole aqui o texto do currículo do candidato..."
                   value={newCandResumeText}
                   onChange={e => setNewCandResumeText(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600"
                 />
               </div>
 
-              <div className="pt-2 flex justify-end space-x-2">
+              <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsAddCandidateOpen(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200"
+                  className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold rounded-xl shadow-xs cursor-pointer"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs shadow-md cursor-pointer"
                 >
-                  Salvar Currículo
+                  Salvar Candidato
                 </button>
               </div>
             </form>
@@ -2110,116 +2822,42 @@ export default function RecruitmentModule({
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 3: CREATION / EDITING JOB MODAL */}
-      {/* ========================================================================= */}
+      {/* MODAL CRIAR / EDITAR VAGA */}
       {isNewJobOpen && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-4xl w-full p-6 space-y-5 max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in-95">
-            
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Configuração de Vaga Pública</span>
-                <h3 className="font-display font-bold text-lg text-slate-900 flex items-center space-x-2">
-                  <Briefcase className="h-5 w-5 text-amber-500" />
-                  <span>{editingJob ? 'Editar Vaga e Página Pública' : 'Criar Nova Vaga com Página Pública'}</span>
-                </h3>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setIsPreviewOpen(true)}
-                  className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs px-3 py-2 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-xs"
-                >
-                  <Eye className="h-4 w-4" />
-                  <span>Pré-Visualização em Tempo Real</span>
-                </button>
-
-                <button 
-                  onClick={() => setIsNewJobOpen(false)}
-                  className="text-slate-400 hover:text-slate-600 p-1"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-2xl w-full space-y-4 border border-slate-200 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <h3 className="font-extrabold text-lg text-slate-900 flex items-center space-x-2">
+                <Briefcase className="h-5 w-5 text-emerald-600" />
+                <span>{editingJob ? 'Editar Vaga de Emprego' : 'Criar Nova Vaga de Emprego'}</span>
+              </h3>
+              <button onClick={() => setIsNewJobOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
-            <form onSubmit={handleSaveJob} className="space-y-4">
-              
-              {/* Top Banner Image Picker */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-700">Banner da Vaga (Página Pública)</label>
-                <div className="flex flex-col sm:flex-row gap-3 items-center">
-                  <div className="h-24 w-full sm:w-48 bg-slate-100 rounded-2xl border border-slate-200 overflow-hidden relative shrink-0">
-                    <img 
-                      src={bannerUrl || getDefaultBanner(jobDept)} 
-                      alt="Banner Preview" 
-                      className="w-full h-full object-cover"
-                    />
-                    <span className="absolute bottom-1 left-1 bg-slate-900/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
-                      Banner Atual
-                    </span>
-                  </div>
-
-                  <div className="space-y-2 flex-1 w-full">
-                    <div className="flex items-center space-x-2">
-                      <label className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3 py-2 rounded-xl border border-slate-200 cursor-pointer flex items-center space-x-1.5 transition-all">
-                        <Upload className="h-4 w-4 text-slate-500" />
-                        <span>Enviar Foto (JPG, PNG, WEBP)</span>
-                        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleBannerUpload} className="hidden" />
-                      </label>
-                      
-                      {bannerUrl && (
-                        <button
-                          type="button"
-                          onClick={() => setBannerUrl('')}
-                          className="text-xs text-rose-600 hover:underline font-semibold"
-                        >
-                          Usar Padrão do Sistema
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-slate-400">
-                      Envie uma foto de capa personalizada para dar destaque à sua vaga no portal público.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Form Grid Fields */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
-                <div>
+            <form onSubmit={handleSaveJob} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
                   <label className="block font-bold text-slate-700 mb-1">Título da Vaga *</label>
                   <input
                     type="text"
                     required
-                    placeholder="Ex: Desenvolvedor Full Stack Sênior"
+                    placeholder="Ex: Desenvolvedor React Sênior"
                     value={jobTitle}
                     onChange={e => setJobTitle(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Departamento</label>
+                  <label className="block font-bold text-slate-700 mb-1">Departamento / Área</label>
                   <input
                     type="text"
-                    placeholder="Ex: TI, Comercial, RH, Financeiro"
+                    placeholder="Tecnologia, Vendas, RH..."
                     value={jobDept}
                     onChange={e => setJobDept(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Nome da Empresa</label>
-                  <input
-                    type="text"
-                    placeholder="TECHCORP INOVAÇÕES"
-                    value={companyName}
-                    onChange={e => setCompanyName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600"
                   />
                 </div>
 
@@ -2228,7 +2866,7 @@ export default function RecruitmentModule({
                   <select
                     value={jobModel}
                     onChange={e => setJobModel(e.target.value as any)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600"
                   >
                     <option value="Híbrido">Híbrido</option>
                     <option value="Remoto">Remoto</option>
@@ -2237,545 +2875,403 @@ export default function RecruitmentModule({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Tipo de Contrato</label>
-                  <select
-                    value={jobType}
-                    onChange={e => setJobType(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none"
-                  >
-                    <option value="CLT">CLT (Efetivo)</option>
-                    <option value="PJ">PJ (Pessoa Jurídica)</option>
-                    <option value="Estágio">Estágio</option>
-                    <option value="Temporário">Temporário</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Faixa Salarial / Pretensão</label>
+                  <label className="block font-bold text-slate-700 mb-1">Faixa Salarial</label>
                   <input
                     type="text"
-                    placeholder="Ex: R$ 8.000,00 - R$ 10.000,00"
+                    placeholder="R$ 8.000,00 - R$ 10.000,00"
                     value={jobSalary}
                     onChange={e => setJobSalary(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Cidade</label>
+                  <label className="block font-bold text-slate-700 mb-1">Cidade / UF</label>
                   <input
                     type="text"
-                    placeholder="São Paulo"
-                    value={city}
-                    onChange={e => setCity(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Estado (UF)</label>
-                  <input
-                    type="text"
-                    maxLength={2}
-                    placeholder="SP"
-                    value={stateUF}
-                    onChange={e => setStateUF(e.target.value.toUpperCase())}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500 uppercase"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Prazo limite de inscrição</label>
-                  <input
-                    type="date"
-                    value={jobPrazo}
-                    onChange={e => setJobPrazo(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500"
+                    placeholder="São Paulo - SP"
+                    value={jobLocation}
+                    onChange={e => setJobLocation(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600"
                   />
                 </div>
               </div>
 
-              {/* Status & Public Options */}
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                <div>
-                  <span className="font-bold text-slate-900 block">Status da Divulgação</span>
-                  <p className="text-[10px] text-slate-500">
-                    Ao selecionar 'Publicada', a vaga ficará ativa imediatamente no portal de carreiras e disponível para inscritos.
-                  </p>
-                </div>
-
-                <div className="flex items-center space-x-2 shrink-0">
-                  <label className="font-bold text-slate-700">Status:</label>
-                  <select
-                    value={jobStatus}
-                    onChange={e => setJobStatus(e.target.value as any)}
-                    className="bg-white border border-slate-300 font-bold rounded-xl px-3 py-1.5 focus:outline-none"
-                  >
-                    <option value="Publicada">Publicada (Ativa)</option>
-                    <option value="Rascunho">Rascunho (Privado)</option>
-                    <option value="Encerrada">Encerrada</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* AI Auto Generator Trigger Button */}
-              <div className="flex justify-between items-center pt-1">
-                <span className="text-[11px] font-bold text-slate-500">Textos & Requisitos da Vaga</span>
-                <button
-                  type="button"
-                  onClick={handleAIGenerateJob}
-                  disabled={isGeneratingJob}
-                  className="bg-slate-900 hover:bg-emerald-600 disabled:bg-slate-400 text-amber-400 font-extrabold text-xs px-3.5 py-2 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-xs"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  <span>{isGeneratingJob ? 'Gerando com IA...' : 'Otimizar Descrição e Requisitos com IA'}</span>
-                </button>
-              </div>
-
-              {/* Textareas */}
-              <div className="space-y-3 text-xs">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Descrição Detalhada</label>
-                  <textarea
-                    rows={3}
-                    placeholder="Descreva o propósito da vaga, ambiente de trabalho, cultura da empresa..."
-                    value={jobDesc}
-                    onChange={e => setJobDesc(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Requisitos Exigidos (1 por linha)</label>
-                    <textarea
-                      rows={3}
-                      placeholder="Ensino superior completo&#10;Experiência sólida com React e TypeScript&#10;Inglês intermediário"
-                      value={jobReqsText}
-                      onChange={e => setJobReqsText(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Responsabilidades (1 por linha)</label>
-                    <textarea
-                      rows={3}
-                      placeholder="Desenvolver componentes escaláveis&#10;Liderar code reviews de pares&#10;Garantir alta qualidade nos testes"
-                      value={responsibilitiesText}
-                      onChange={e => setResponsibilitiesText(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Diferenciais Desejáveis (1 por linha)</label>
-                    <textarea
-                      rows={2}
-                      placeholder="Conhecimento em Docker / Kubernetes&#10;Experiência com arquitetura Serverless"
-                      value={differentialsText}
-                      onChange={e => setDifferentialsText(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Benefícios da Vaga (1 por linha)</label>
-                    <textarea
-                      rows={2}
-                      placeholder="Vale Refeição R$ 40/dia&#10;Plano de Saúde Bradesco&#10;Auxílio Home Office"
-                      value={benefitsText}
-                      onChange={e => setBenefitsText(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Submit Controls */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setIsNewJobOpen(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200 transition-all"
-                >
-                  Cancelar
-                </button>
-
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
-                >
-                  {editingJob ? 'Salvar Alterações da Vaga' : 'Criar Vaga & Publicar Página'}
-                </button>
-              </div>
-
-            </form>
-
-          </div>
-        </div>
-      )}
-
-      {/* Realtime Preview Modal */}
-      <PublicJobPreviewModal 
-        job={currentFormJobState}
-        isOpen={isPreviewOpen}
-        onClose={() => setIsPreviewOpen(false)}
-      />
-
-      {/* Share & QR Code Modal */}
-      {shareModalJob && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 border border-slate-200 shadow-2xl animate-in zoom-in-95">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-              <h3 className="font-bold text-sm text-slate-900">Compartilhar Vaga Pública</h3>
-              <button onClick={() => setShareModalJob(null)} className="text-slate-400 hover:text-slate-600">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs space-y-1">
-              <span className="font-bold text-slate-800 block">{shareModalJob.title}</span>
-              <span className="text-slate-500 text-[11px] block">{shareModalJob.companyName || 'TechCorp'} &bull; {shareModalJob.location}</span>
-              <code className="text-[10px] text-amber-600 font-mono break-all block mt-1">
-                {getPublicJobUrl(shareModalJob)}
-              </code>
-            </div>
-
-            <div className="space-y-2">
-              <button
-                onClick={() => handleCopyLink(shareModalJob)}
-                className="w-full bg-slate-900 text-white font-bold text-xs py-2.5 px-3 rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center space-x-2 cursor-pointer"
-              >
-                <Copy className="h-4 w-4" />
-                <span>Copiar Link Exclusivo</span>
-              </button>
-
-              <div className="grid grid-cols-2 gap-2">
-                <a
-                  href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Confira esta vaga para ${shareModalJob.title}:\n${getPublicJobUrl(shareModalJob)}`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="bg-emerald-50 text-emerald-800 font-bold text-xs py-2 px-3 rounded-xl border border-emerald-200 hover:bg-emerald-100 transition-all text-center"
-                >
-                  WhatsApp
-                </a>
-                <a
-                  href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(getPublicJobUrl(shareModalJob))}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="bg-blue-50 text-blue-800 font-bold text-xs py-2 px-3 rounded-xl border border-blue-200 hover:bg-blue-100 transition-all text-center"
-                >
-                  LinkedIn
-                </a>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setShareModalJob(null)}
-              className="w-full bg-slate-100 text-slate-700 font-bold text-xs py-2 rounded-xl hover:bg-slate-200"
-            >
-              Fechar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Analytics Modal */}
-      {analyticsModalJob && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full space-y-5 border border-slate-200 shadow-2xl animate-in zoom-in-95">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <div>
-                <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">Métricas de Acesso e Candidaturas</span>
-                <h3 className="font-extrabold text-base text-slate-900">{analyticsModalJob.title}</h3>
-              </div>
-              <button onClick={() => setAnalyticsModalJob(null)} className="text-slate-400 hover:text-slate-600">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Metrics Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase block">Visualizações</span>
-                <span className="font-extrabold text-lg text-slate-900 mt-1 block">
-                  {analyticsModalJob.analytics?.views || 38}
-                </span>
-              </div>
-
-              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase block">Cliques CTA</span>
-                <span className="font-extrabold text-lg text-amber-600 mt-1 block">
-                  {analyticsModalJob.analytics?.clicks || 19}
-                </span>
-              </div>
-
-              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase block">Candidaturas</span>
-                <span className="font-extrabold text-lg text-emerald-600 mt-1 block">
-                  {analyticsModalJob.analytics?.applications || 8}
-                </span>
-              </div>
-
-              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase block">Conversão</span>
-                <span className="font-extrabold text-lg text-purple-600 mt-1 block">
-                  {Math.round(((analyticsModalJob.analytics?.applications || 8) / (analyticsModalJob.analytics?.views || 38)) * 100)}%
-                </span>
-              </div>
-            </div>
-
-            {/* Traffic Sources */}
-            <div className="space-y-2">
-              <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wider">Origem dos Acessos (Canais)</h4>
-              <div className="space-y-1.5 text-xs">
-                {Object.entries(analyticsModalJob.analytics?.sources || { Direct: 12, WhatsApp: 8, LinkedIn: 14, Google: 4 }).map(([src, count]) => (
-                  <div key={src} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                    <span className="font-semibold text-slate-700">{src}</span>
-                    <span className="font-mono font-bold text-slate-900">{count} visitas</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <button
-              onClick={() => setAnalyticsModalJob(null)}
-              className="w-full bg-slate-900 text-white font-bold text-xs py-2.5 rounded-xl hover:bg-slate-800"
-            >
-              Concluir
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL: CURRÍCULOS RECEBIDOS POR VAGA */}
-      {/* ========================================================================= */}
-      {selectedJobForCandidates && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-4xl w-full space-y-5 border border-slate-200 shadow-2xl max-h-[92vh] overflow-y-auto animate-in zoom-in-95">
-            
-            {/* Modal Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-slate-100 gap-3">
-              <div className="flex items-center space-x-3">
-                <div className="h-12 w-12 bg-amber-500 text-slate-950 font-extrabold rounded-2xl flex items-center justify-center text-xl shrink-0 shadow-xs">
-                  <Inbox className="h-6 w-6" />
-                </div>
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-[10px] font-extrabold text-amber-600 bg-amber-50 px-2 py-0.5 rounded uppercase tracking-wider">
-                      Currículos Recebidos
-                    </span>
-                    <span className="bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                      {getJobCandidatesList(selectedJobForCandidates.id).length} candidatos
-                    </span>
-                  </div>
-                  <h3 className="font-display font-extrabold text-xl text-slate-900 mt-0.5">
-                    {selectedJobForCandidates.title}
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    {selectedJobForCandidates.department} &bull; {selectedJobForCandidates.location} &bull; {selectedJobForCandidates.workModel || 'Híbrido'} &bull; {selectedJobForCandidates.salaryRange}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2 self-end sm:self-center">
-                <button
-                  onClick={() => {
-                    setKanbanJobFilter(selectedJobForCandidates.id);
-                    setActiveTab('kanban');
-                    setSelectedJobForCandidates(null);
-                  }}
-                  className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs px-3.5 py-2 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer"
-                >
-                  <Columns className="h-4 w-4" />
-                  <span>Ver no Pipeline Kanban</span>
-                </button>
-
-                <button 
-                  onClick={() => setSelectedJobForCandidates(null)} 
-                  className="text-slate-400 hover:text-slate-600 p-2 rounded-xl bg-slate-50 hover:bg-slate-100"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Filter and Search Bar inside modal */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
-              <div className="relative w-full sm:w-72">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Buscar candidato por nome ou habilidades..."
-                  value={jobModalSearch}
-                  onChange={e => setJobModalSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-amber-500"
+                <label className="block font-bold text-slate-700 mb-1">Descrição Detalhada da Vaga</label>
+                <textarea
+                  rows={4}
+                  placeholder="Escreva sobre o objetivo da vaga, desafio do time e ambiente de trabalho..."
+                  value={jobDesc}
+                  onChange={e => setJobDesc(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600"
                 />
               </div>
 
-              <div className="flex items-center space-x-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-                <span className="text-xs font-bold text-slate-500 shrink-0">Etapa:</span>
-                <select
-                  value={jobModalStageFilter}
-                  onChange={e => setJobModalStageFilter(e.target.value)}
-                  className="bg-white border border-slate-200 rounded-xl text-xs px-3 py-2 font-bold text-slate-800 focus:outline-none"
-                >
-                  <option value="Todos">Todas as Etapas</option>
-                  {KANBAN_STAGES.map(s => (
-                    <option key={s.id} value={s.id}>{s.label}</option>
-                  ))}
-                </select>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Requisitos Exigidos (Um por linha)</label>
+                <textarea
+                  rows={3}
+                  placeholder="Experiência com React e TypeScript&#10;Domínio de Tailwind CSS&#10;Boa comunicação interpessoal"
+                  value={jobReqsText}
+                  onChange={e => setJobReqsText(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600"
+                />
               </div>
-            </div>
 
-            {/* Candidate List Cards */}
-            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-              {candidatesForSelectedJobModal.length === 0 ? (
-                <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-6 space-y-3">
-                  <Inbox className="h-10 w-10 text-slate-300 mx-auto" />
-                  <h4 className="font-bold text-slate-700 text-sm">Nenhum currículo encontrado para esta vaga</h4>
-                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                    Nenhum candidato se inscreveu ainda ou os filtros aplicados não retornaram resultados.
-                  </p>
-                  <button
-                    onClick={() => {
-                      setNewCandJobId(selectedJobForCandidates.id);
-                      setNewCandArea(selectedJobForCandidates.department);
-                      setIsAddCandidateOpen(true);
-                      setSelectedJobForCandidates(null);
-                    }}
-                    className="mt-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl inline-flex items-center space-x-1.5 cursor-pointer shadow-xs"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Cadastrar Currículo para esta Vaga</span>
-                  </button>
-                </div>
-              ) : (
-                candidatesForSelectedJobModal.map(cand => {
-                  const phoneClean = cand.phone ? cand.phone.replace(/\D/g, '') : '';
-                  const waUrl = phoneClean ? `https://wa.me/55${phoneClean}` : null;
-                  const stageObj = KANBAN_STAGES.find(s => s.id === getCandidateStage(cand)) || KANBAN_STAGES[0];
-
-                  return (
-                    <div 
-                      key={cand.id}
-                      className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs hover:border-amber-300 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
-                    >
-                      <div className="flex items-start space-x-3.5 min-w-0">
-                        <div className="h-11 w-11 bg-slate-900 text-amber-400 font-extrabold rounded-2xl flex items-center justify-center shrink-0 text-base shadow-xs">
-                          {cand.name.charAt(0).toUpperCase()}
-                        </div>
-
-                        <div className="space-y-1.5 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="font-bold text-sm text-slate-900">{cand.name}</h4>
-                            <span className="text-xs text-slate-500 font-medium">({cand.city}-{cand.state})</span>
-                            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-md ${stageObj.badge}`}>
-                              {stageObj.label}
-                            </span>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                            <span className="flex items-center space-x-1">
-                              <Mail className="h-3.5 w-3.5 text-slate-400" />
-                              <span>{cand.email}</span>
-                            </span>
-                            <span className="flex items-center space-x-1">
-                              <Phone className="h-3.5 w-3.5 text-slate-400" />
-                              <span>{cand.phone}</span>
-                            </span>
-                            {waUrl && (
-                              <a 
-                                href={waUrl} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-emerald-600 font-bold flex items-center space-x-1 hover:underline"
-                                title="Falar no WhatsApp"
-                              >
-                                <MessageSquare className="h-3.5 w-3.5" />
-                                <span>WhatsApp</span>
-                              </a>
-                            )}
-                          </div>
-
-                          <p className="text-xs text-slate-600 italic line-clamp-1">
-                            "{cand.experience}"
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-between md:justify-end gap-2.5 shrink-0 pt-3 md:pt-0 border-t md:border-0 border-slate-100">
-                        {cand.aiScore !== undefined ? (
-                          <div className="bg-amber-50 text-amber-800 px-3 py-1.5 rounded-xl border border-amber-200 text-center shrink-0">
-                            <span className="text-[9px] font-bold text-slate-400 block uppercase font-mono">Compatibilidade</span>
-                            <span className="font-extrabold text-xs flex items-center justify-center space-x-1">
-                              <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
-                              <span>{cand.aiScore}%</span>
-                            </span>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => handleAICandidateScreening(cand)}
-                            disabled={isAnalyzing === cand.id}
-                            className="bg-slate-900 hover:bg-emerald-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition-all flex items-center space-x-1 cursor-pointer"
-                          >
-                            <Sparkles className="h-3.5 w-3.5" />
-                            <span>{isAnalyzing === cand.id ? 'Analisando...' : 'Triagem IA'}</span>
-                          </button>
-                        )}
-
-                        <select
-                          value={getCandidateStage(cand)}
-                          onChange={e => handleChangeCandidateStage(cand.id, e.target.value)}
-                          className="bg-slate-100 border border-slate-200 rounded-xl text-xs px-2.5 py-1.5 font-bold text-slate-700 focus:outline-none"
-                        >
-                          {KANBAN_STAGES.map(s => (
-                            <option key={s.id} value={s.id}>{s.label}</option>
-                          ))}
-                        </select>
-
-                        <button
-                          onClick={() => {
-                            setSelectedCandidateDetail(cand);
-                            setCandidateNoteInput(cand.notes || '');
-                          }}
-                          className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs px-3.5 py-1.5 rounded-xl transition-all flex items-center space-x-1 cursor-pointer"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          <span>Ver CV</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleDeleteCandidate(cand.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-slate-100 transition-all cursor-pointer"
-                          title="Remover Candidato"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
+              <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsNewJobOpen(false)}
+                  className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs shadow-md cursor-pointer"
+                >
+                  {editingJob ? 'Salvar Alterações' : 'Publicar Vaga'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* TAB 4: ENTREVISTA INTELIGENTE COM IA */}
-      {/* ========================================================================= */}
-      {activeTab === 'entrevistas' && (
-        <div className="animate-in fade-in pt-1">
-          <SmartInterviewModule 
-            jobs={jobs}
-            candidates={candidates}
-          />
+      {/* MODAL ADICIONAR / EDITAR COLUNA KANBAN */}
+      {isColumnModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full space-y-4 border border-slate-200 shadow-2xl">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <h3 className="font-extrabold text-lg text-slate-900 flex items-center space-x-2">
+                <Palette className="h-5 w-5 text-emerald-600" />
+                <span>{editingStage ? 'Editar Coluna do Kanban' : 'Nova Coluna do Kanban'}</span>
+              </h3>
+              <button onClick={() => setIsColumnModalOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveColumn} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Nome da Coluna / Etapa *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Entrevista com CEO, Teste Prático, Fit Cultural..."
+                  value={columnName}
+                  onChange={e => setColumnName(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-semibold focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">E quando utilizar esta etapa? (Regra / Gatilho)</label>
+                <textarea
+                  rows={2}
+                  placeholder="Ex: Mover candidatos aprovados na fase de teste técnico para agendamento de conversa com o lider de engenharia..."
+                  value={columnWhenRule}
+                  onChange={e => setColumnWhenRule(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  Esta instrução é exibida ao passar o mouse no ícone 💡 da coluna.
+                </span>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-2">Tema de Cor do Card e Cabeçalho</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1 border border-slate-100 rounded-2xl">
+                  {Object.keys(COLOR_THEMES).map(key => {
+                    const t = COLOR_THEMES[key];
+                    const isSel = columnColorKey === key;
+                    return (
+                      <button
+                        type="button"
+                        key={key}
+                        onClick={() => setColumnColorKey(key)}
+                        className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex items-center space-x-2 ${
+                          isSel ? 'ring-2 ring-emerald-600 border-emerald-500 bg-emerald-50/40' : 'border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className={`h-3 w-3 rounded-full shrink-0 ${t.barColor}`} />
+                        <span className="font-bold text-[10px] text-slate-800 truncate">{t.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {!editingStage && (
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Posição na Esteira Kanban</label>
+                  <select
+                    value={insertAfterId}
+                    onChange={e => setInsertAfterId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-semibold focus:outline-none focus:border-emerald-600"
+                  >
+                    <option value="end">Ao Final da Esteira (Última Coluna)</option>
+                    {kanbanStages.map(s => (
+                      <option key={s.id} value={s.id}>Inserir após "{s.label}"</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsColumnModalOpen(false)}
+                  className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs shadow-md cursor-pointer"
+                >
+                  {editingStage ? 'Salvar Alterações' : 'Criar Coluna'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL REMOVER COLUNA KANBAN */}
+      {removeColumnModal.isOpen && removeColumnModal.stageToRemove && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 border border-slate-200 shadow-2xl">
+            <div className="flex items-center space-x-3 text-rose-600">
+              <div className="p-3 bg-rose-100 rounded-2xl shrink-0">
+                <Trash2 className="h-6 w-6 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-base text-slate-900">
+                  Remover Coluna "{removeColumnModal.stageToRemove.label}"?
+                </h3>
+                <span className="text-[11px] text-slate-500 font-medium">
+                  Confirme a exclusão desta etapa do fluxo de recrutamento
+                </span>
+              </div>
+            </div>
+
+            {(() => {
+              const countInStage = candidates.filter(c => getCandidateStage(c, kanbanStages) === removeColumnModal.stageToRemove?.id).length;
+              return countInStage > 0 ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 space-y-2 text-xs text-amber-900">
+                  <p className="font-extrabold flex items-center space-x-1">
+                    <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                    <span>Atenção: Existem {countInStage} candidato(s) nesta coluna!</span>
+                  </p>
+                  <p className="text-[11px] text-amber-800">
+                    Selecione para qual etapa deseja mover automaticamente esses candidatos antes de remover a coluna:
+                  </p>
+                  <select
+                    value={removeColumnModal.targetStageId}
+                    onChange={e => setRemoveColumnModal(prev => ({ ...prev, targetStageId: e.target.value }))}
+                    className="w-full bg-white border border-amber-300 rounded-xl p-2 text-xs font-bold text-slate-800 focus:outline-none"
+                  >
+                    {kanbanStages
+                      .filter(s => s.id !== removeColumnModal.stageToRemove?.id && !s.hidden)
+                      .map(s => (
+                        <option key={s.id} value={s.id}>Mover para "{s.label}"</option>
+                      ))}
+                  </select>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Não há candidatos atualmente nesta coluna. Ela será excluída com segurança do seu Kanban.
+                </p>
+              );
+            })()}
+
+            <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setRemoveColumnModal({ isOpen: false, stageToRemove: null, targetStageId: 'Recebidos' })}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRemoveColumn}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl text-xs shadow-md cursor-pointer"
+              >
+                Confirmar Exclusão
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL GERENCIAR COLUNAS DO KANBAN */}
+      {isManageColumnsOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-2xl w-full space-y-4 border border-slate-200 shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100 shrink-0">
+              <div>
+                <h3 className="font-extrabold text-lg text-slate-900 flex items-center space-x-2">
+                  <SlidersHorizontal className="h-5 w-5 text-emerald-600" />
+                  <span>Gerenciar Colunas do Kanban</span>
+                </h3>
+                <span className="text-xs text-slate-500 font-medium">
+                  Reordene, adicione, edite ou altere a visibilidade das colunas do seu processo seletivo
+                </span>
+              </div>
+              <button onClick={() => setIsManageColumnsOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100 shrink-0">
+              <span className="text-xs font-bold text-slate-700">
+                {kanbanStages.length} colunas cadastradas ({visibleStages.length} visíveis)
+              </span>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={handleResetStagesToDefault}
+                  className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center space-x-1"
+                  title="Restaurar as 10 etapas oficiais padrão"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Restaurar Padrão</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsManageColumnsOpen(false);
+                    handleOpenAddColumnModal('end');
+                  }}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center space-x-1"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Nova Coluna</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto space-y-2 pr-1 flex-1">
+              {kanbanStages.map((stage, idx) => {
+                const countCandidates = candidates.filter(c => getCandidateStage(c, kanbanStages) === stage.id).length;
+                return (
+                  <div
+                    key={stage.id}
+                    className={`p-3 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
+                      stage.hidden ? 'bg-slate-50/60 border-slate-200 opacity-60' : 'bg-white border-slate-200 shadow-2xs'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <span className={`h-3 w-3 rounded-full shrink-0 ${stage.barColor}`} />
+                      <div className="min-w-0">
+                        <div className="flex items-center space-x-2">
+                          <h4 className="font-extrabold text-xs text-slate-900 truncate">
+                            {stage.label}
+                          </h4>
+                          <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-md ${stage.badge}`}>
+                            {countCandidates} cands
+                          </span>
+                          {stage.hidden && (
+                            <span className="text-[9px] bg-slate-200 text-slate-600 font-bold px-1.5 py-0.2 rounded-md">
+                              Oculta
+                            </span>
+                          )}
+                        </div>
+                        {stage.whenRule && (
+                          <p className="text-[10px] text-slate-500 truncate max-w-md">
+                            💡 {stage.whenRule}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-1 shrink-0">
+                      <button
+                        onClick={() => handleToggleStageVisibility(stage.id)}
+                        className={`p-1.5 rounded-xl transition-colors cursor-pointer ${
+                          stage.hidden ? 'text-slate-400 hover:bg-slate-200' : 'text-emerald-600 hover:bg-emerald-50'
+                        }`}
+                        title={stage.hidden ? 'Exibir no Kanban' : 'Ocultar no Kanban'}
+                      >
+                        {stage.hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setIsManageColumnsOpen(false);
+                          handleOpenEditColumnModal(stage);
+                        }}
+                        className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer"
+                        title="Editar coluna"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+
+                      <button
+                        onClick={() => handleInitRemoveColumn(stage)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                        title="Excluir coluna"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-100 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsManageColumnsOpen(false)}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold rounded-xl text-xs cursor-pointer shadow-md"
+              >
+                Concluído
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GLOBAL CONFIRMATION MODAL */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white max-w-md w-full rounded-3xl p-6 border border-slate-200 shadow-2xl space-y-4">
+            <div className="flex items-center space-x-3 text-rose-600">
+              <div className="p-3 bg-rose-100 rounded-2xl">
+                <AlertCircle className="h-6 w-6 text-rose-600" />
+              </div>
+              <h3 className="font-display font-bold text-lg text-slate-900">{confirmModal.title}</h3>
+            </div>
+
+            <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
+              {confirmModal.message}
+            </p>
+
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Voltar
+              </button>
+              <button
+                type="button"
+                onClick={confirmModal.onConfirm}
+                className={`px-4 py-2.5 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer ${
+                  confirmModal.isDanger !== false 
+                    ? 'bg-rose-600 hover:bg-rose-700' 
+                    : 'bg-emerald-600 hover:bg-emerald-700 font-extrabold'
+                }`}
+              >
+                {confirmModal.confirmText || 'Confirmar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

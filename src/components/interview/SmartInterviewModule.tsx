@@ -62,13 +62,13 @@ export default function SmartInterviewModule({
     loadData();
   }, []);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     const data = await InterviewService.getInterviews();
     const st = await InterviewService.getStats();
     setInterviews(data);
     setStats(st);
-    setLoading(false);
+    if (showSpinner) setLoading(false);
   };
 
   // Handlers
@@ -294,11 +294,11 @@ export default function SmartInterviewModule({
               onEnterRoom={handleEnterRoom}
               onUpdateInterview={async (id, updates) => {
                 await InterviewService.updateInterview(id, updates);
-                await loadData();
+                await loadData(false);
               }}
               onDeleteInterview={async (id) => {
                 await InterviewService.deleteInterview(id);
-                await loadData();
+                await loadData(false);
               }}
             />
           )}

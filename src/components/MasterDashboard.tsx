@@ -25,11 +25,16 @@ import {
   Globe,
   Settings,
   Search,
-  Activity
+  Activity,
+  FlaskConical,
+  Sparkles,
+  Palette
 } from 'lucide-react';
 import { firebaseService } from '../firebase';
 import { SaaSModule, SaaSProduct, SaaSPlan, SaaSCompany, UserAccount } from '../types_master';
 import SiteConfigManager from './SiteConfigManager';
+import DevLabModule from './DevLabModule';
+import CompanyLayoutEditor from './CompanyLayoutEditor';
 
 interface MasterDashboardProps {
   currentUser: UserAccount;
@@ -38,7 +43,8 @@ interface MasterDashboardProps {
 
 export default function MasterDashboard({ currentUser, onLogout }: MasterDashboardProps) {
   // Tabs
-  const [activeTab, setActiveTab] = useState<'overview' | 'modules' | 'products' | 'plans' | 'companies' | 'site_config'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'modules' | 'products' | 'plans' | 'companies' | 'layout_editor' | 'site_config' | 'dev_lab'>('overview');
+  const [selectedCompanyForLayoutId, setSelectedCompanyForLayoutId] = useState<string | undefined>(undefined);
   
   // Data State
   const [modules, setModules] = useState<SaaSModule[]>([]);
@@ -507,6 +513,31 @@ export default function MasterDashboard({ currentUser, onLogout }: MasterDashboa
             <span>Empresas Clientes ({companies.length})</span>
           </button>
 
+          <button
+            onClick={() => { setActiveTab('layout_editor'); setSearchQuery(''); }}
+            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-medium transition-all ${
+              activeTab === 'layout_editor' ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/10' : 'text-amber-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <Palette className="h-4.5 w-4.5 text-amber-400" />
+            <span>Personalizar Layout por Cliente</span>
+          </button>
+
+          <div className="pt-3 pb-1 px-2 text-[10px] font-mono font-bold text-amber-500 uppercase tracking-wider border-t border-slate-800/80 mt-2">
+            DESENVOLVIMENTO
+          </div>
+
+          <button
+            onClick={() => { setActiveTab('dev_lab'); setSearchQuery(''); }}
+            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-medium transition-all ${
+              activeTab === 'dev_lab' ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20' : 'text-amber-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <FlaskConical className="h-4.5 w-4.5 text-amber-400" />
+            <span className="font-bold flex-1 text-left">🛠 Laboratório de Dev</span>
+            <span className="bg-amber-400/20 text-amber-300 font-mono text-[9px] px-1.5 py-0.5 rounded uppercase">Master</span>
+          </button>
+
           <div className="pt-3 pb-1 px-2 text-[10px] font-mono font-bold text-amber-500 uppercase tracking-wider border-t border-slate-800/80 mt-2">
             SITE INSTITUCIONAL
           </div>
@@ -548,6 +579,7 @@ export default function MasterDashboard({ currentUser, onLogout }: MasterDashboa
               {activeTab === 'plans' && 'Criador e Gestão de Planos'}
               {activeTab === 'companies' && 'Controle de Empresas Clientes'}
               {activeTab === 'site_config' && 'Gerenciador do Site Principal'}
+              {activeTab === 'dev_lab' && 'Laboratório de Desenvolvimento SaaS'}
             </h2>
             <p className="text-slate-400 text-xs mt-1">
               {activeTab === 'overview' && 'Monitore a receita, planos contratados e status do ecossistema SaaS.'}
@@ -556,11 +588,12 @@ export default function MasterDashboard({ currentUser, onLogout }: MasterDashboa
               {activeTab === 'plans' && 'Monte ofertas completas recorrentes (mensais / anuais) com limites de usuários.'}
               {activeTab === 'companies' && 'Cadastre corporações, altere assinaturas, libere módulos adicionais ou bloqueie acessos.'}
               {activeTab === 'site_config' && 'Edite o conteúdo institucional, imagens, planos e contatos do portal público sem alterar código.'}
+              {activeTab === 'dev_lab' && 'Recurso exclusivo do Administrador Master para homologar releases, testar interfaces e autorizar publicações.'}
             </p>
           </div>
 
           {/* Search bar inside lists */}
-          {activeTab !== 'overview' && activeTab !== 'site_config' && (
+          {activeTab !== 'overview' && activeTab !== 'site_config' && activeTab !== 'dev_lab' && (
             <div className="relative flex items-center max-w-xs w-full">
               <Search className="h-4 w-4 text-slate-500 absolute left-3" />
               <input
@@ -1000,6 +1033,18 @@ export default function MasterDashboard({ currentUser, onLogout }: MasterDashboa
                               <td className="p-4 text-right">
                                 <div className="flex items-center justify-end space-x-2">
                                   <button
+                                    onClick={() => {
+                                      setSelectedCompanyForLayoutId(comp.id);
+                                      setActiveTab('layout_editor');
+                                    }}
+                                    className="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500 hover:text-slate-950 text-amber-400 font-bold text-[11px] rounded-xl transition-all border border-amber-500/20 flex items-center space-x-1 cursor-pointer shadow-xs"
+                                    title="Personalizar Layout por Cliente"
+                                  >
+                                    <Palette className="h-3.5 w-3.5" />
+                                    <span>Personalizar Layout</span>
+                                  </button>
+
+                                  <button
                                     onClick={() => handleOpenCompanyModal(comp)}
                                     className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg transition-colors border border-slate-700"
                                     title="Configurar Acesso e Plano"
@@ -1025,9 +1070,24 @@ export default function MasterDashboard({ currentUser, onLogout }: MasterDashboa
               </div>
             )}
 
+            {/* --- TAB: EDITOR DE LAYOUT PERSONALIZADO POR CLIENTE --- */}
+            {activeTab === 'layout_editor' && (
+              <CompanyLayoutEditor
+                companies={companies}
+                selectedCompanyId={selectedCompanyForLayoutId}
+                onClose={() => setActiveTab('companies')}
+                triggerToast={(msg) => setToast({ type: 'success', message: msg })}
+              />
+            )}
+
             {/* --- TAB 6: GERENCIADOR DO SITE PRINCIPAL --- */}
             {activeTab === 'site_config' && (
               <SiteConfigManager />
+            )}
+
+            {/* --- TAB 7: LABORATÓRIO DE DESENVOLVIMENTO (MASTER ONLY) --- */}
+            {activeTab === 'dev_lab' && (
+              <DevLabModule />
             )}
           </>
         )}

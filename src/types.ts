@@ -19,13 +19,44 @@ export interface Candidate {
   jobTitle?: string; // Título da vaga para facilidade
   aiScore?: number; // Pontuação da IA (0-100)
   aiAnalysis?: string; // Análise detalhada do currículo pela IA
-  status?: 'Novo' | 'Triagem' | 'Entrevista' | 'Entrevista RH' | 'Entrevista Técnica' | 'Proposta' | 'Aprovado' | 'Reprovado' | string;
+  status?: 'Recebidos' | 'Novo' | 'Triagem IA' | 'Triagem RH' | 'Triagem' | 'Entrevista' | 'Entrevista RH' | 'Entrevista Técnica' | 'Teste' | 'Proposta' | 'Contratação' | 'Aprovado' | 'Banco de Talentos' | 'Reprovados' | 'Reprovado' | string;
   notes?: string; // Anotações do recrutador
   rating?: number; // Avaliação manual 1-5
   expectedSalary?: string;
+  salaryExpectation?: string;
   cpf?: string;
   linkedinUrl?: string;
   portfolioUrl?: string;
+  videoUrl?: string;
+  isFavorite?: boolean;
+  education?: string;
+  workModel?: 'Presencial' | 'Híbrido' | 'Remoto' | string;
+  languages?: string[];
+  skills?: string[];
+  previousCompany?: string;
+  screening?: {
+    generalRating?: number;
+    iaCompatibility?: number;
+    experienceLevel?: 'Excelente' | 'Boa' | 'Regular' | 'Baixa';
+    educationLevel?: 'Compatível' | 'Parcial' | 'Não Compatível';
+    techKnowledge?: 'Excelente' | 'Bom' | 'Regular' | 'Baixo';
+    communicationLevel?: 'Excelente' | 'Boa' | 'Regular' | 'Ruim';
+    availability?: 'Imediata' | '15 dias' | '30 dias' | 'Outro';
+    expectedSalary?: string;
+    rhComments?: string;
+    privateNotes?: string;
+  };
+  aiInsights?: {
+    matchScore?: number;
+    summary?: string;
+    skillsIdentified?: string[];
+    strengths?: string[];
+    concerns?: string[];
+    interviewQuestions?: string[];
+    turnoverRisk?: 'Baixo' | 'Médio' | 'Alto';
+    behavioralProfile?: string;
+    recommendation?: 'Aprovar' | 'Segunda Entrevista' | 'Banco de Talentos' | 'Reprovar';
+  };
 }
 
 export interface JobAnalytics {

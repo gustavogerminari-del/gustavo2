@@ -10,7 +10,8 @@ import {
   Clock, 
   ArrowUpRight, 
   Filter,
-  Award
+  Award,
+  AlertCircle
 } from 'lucide-react';
 import { SmartInterview } from '../../types_interview';
 
@@ -30,6 +31,18 @@ export default function InterviewHistoryView({
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Todos');
+
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
 
   const historyInterviews = interviews.filter(i => {
     const matchSearch = 
@@ -166,9 +179,15 @@ export default function InterviewHistoryView({
 
                       <button
                         onClick={() => {
-                          if (confirm(`Deseja excluir o registro da entrevista de ${interview.candidateName}?`)) {
-                            onDeleteInterview(interview.id);
-                          }
+                          setConfirmModal({
+                            isOpen: true,
+                            title: 'Excluir Registro',
+                            message: `Deseja excluir permanentemente o registro da entrevista de ${interview.candidateName}?`,
+                            onConfirm: () => {
+                              onDeleteInterview(interview.id);
+                              setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                            }
+                          });
                         }}
                         className="p-2 bg-slate-100 hover:bg-rose-600 hover:text-white text-slate-400 rounded-xl transition-all cursor-pointer inline-flex items-center"
                         title="Excluir"
@@ -183,6 +202,41 @@ export default function InterviewHistoryView({
           </div>
         )}
       </div>
+
+      {/* Confirmation Modal */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white max-w-md w-full rounded-3xl p-6 border border-slate-200 shadow-2xl space-y-4">
+            <div className="flex items-center space-x-3 text-rose-600">
+              <div className="p-3 bg-rose-100 rounded-2xl">
+                <AlertCircle className="h-6 w-6 text-rose-600" />
+              </div>
+              <h3 className="font-display font-bold text-lg text-slate-900">{confirmModal.title}</h3>
+            </div>
+
+            <p className="text-sm text-slate-600 leading-relaxed">
+              {confirmModal.message}
+            </p>
+
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Voltar
+              </button>
+              <button
+                type="button"
+                onClick={confirmModal.onConfirm}
+                className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
+              >
+                Sim, Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

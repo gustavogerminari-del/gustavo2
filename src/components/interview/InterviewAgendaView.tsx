@@ -48,11 +48,27 @@ export default function InterviewAgendaView({
   const [selectedModality, setSelectedModality] = useState<string>('Todas');
   const [selectedDateFilter, setSelectedDateFilter] = useState<'Todas' | 'Hoje' | 'EstaSemana' | 'Proximas'>('Todas');
 
-  // Action Feedbacks & Reschedule modal
+  // Action Feedbacks & Reschedule modal & Confirmation modal
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [rescheduleModalInterview, setRescheduleModalInterview] = useState<SmartInterview | null>(null);
   const [newDate, setNewDate] = useState('');
   const [newTime, setNewTime] = useState('');
+
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText: string;
+    isDanger?: boolean;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: '',
+    isDanger: true,
+    onConfirm: () => {}
+  });
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -109,22 +125,38 @@ export default function InterviewAgendaView({
 
   const handleCancelInterview = (interview: SmartInterview) => {
     if (!onUpdateInterview) return;
-    if (confirm(`Tem certeza que deseja cancelar o agendamento de ${interview.candidateName}?`)) {
-      onUpdateInterview(interview.id, {
-        status: 'Cancelada',
-        notes: `${interview.notes || ''}\n[Cancelada pelo recrutador em ${new Date().toLocaleDateString('pt-BR')}]`
-      });
-      triggerToast(`Agendamento com ${interview.candidateName} cancelado.`);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Cancelar Agendamento',
+      message: `Tem certeza que deseja cancelar o agendamento de ${interview.candidateName}?`,
+      confirmText: 'Sim, Cancelar Agendamento',
+      isDanger: true,
+      onConfirm: () => {
+        onUpdateInterview(interview.id, {
+          status: 'Cancelada',
+          notes: `${interview.notes || ''}\n[Cancelada pelo recrutador em ${new Date().toLocaleDateString('pt-BR')}]`
+        });
+        triggerToast(`Agendamento com ${interview.candidateName} cancelado com sucesso.`);
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   const handleDeleteInterview = (id: string, name: string) => {
-    if (confirm(`Tem certeza que deseja excluir permanentemente o agendamento de ${name}?`)) {
-      if (onDeleteInterview) {
-        onDeleteInterview(id);
-        triggerToast('Agendamento excluído com sucesso.');
+    setConfirmModal({
+      isOpen: true,
+      title: 'Excluir Agendamento',
+      message: `Tem certeza que deseja excluir permanentemente o agendamento de ${name}? Esta ação não pode ser desfeita.`,
+      confirmText: 'Sim, Excluir Definitivamente',
+      isDanger: true,
+      onConfirm: () => {
+        if (onDeleteInterview) {
+          onDeleteInterview(id);
+          triggerToast(`Agendamento de ${name} excluído com sucesso.`);
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }
-    }
+    });
   };
 
   const filteredInterviews = interviews.filter(i => {
@@ -525,6 +557,45 @@ export default function InterviewAgendaView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white max-w-md w-full rounded-3xl p-6 border border-slate-200 shadow-2xl space-y-4">
+            <div className="flex items-center space-x-3 text-rose-600">
+              <div className="p-3 bg-rose-100 rounded-2xl">
+                <AlertCircle className="h-6 w-6 text-rose-600" />
+              </div>
+              <h3 className="font-display font-bold text-lg text-slate-900">{confirmModal.title}</h3>
+            </div>
+
+            <p className="text-sm text-slate-600 leading-relaxed">
+              {confirmModal.message}
+            </p>
+
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Voltar
+              </button>
+              <button
+                type="button"
+                onClick={confirmModal.onConfirm}
+                className={`px-4 py-2.5 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer ${
+                  confirmModal.isDanger 
+                    ? 'bg-rose-600 hover:bg-rose-700' 
+                    : 'bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold'
+                }`}
+              >
+                {confirmModal.confirmText}
+              </button>
+            </div>
           </div>
         </div>
       )}
