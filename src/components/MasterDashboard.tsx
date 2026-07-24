@@ -35,6 +35,7 @@ import { SaaSModule, SaaSProduct, SaaSPlan, SaaSCompany, UserAccount } from '../
 import SiteConfigManager from './SiteConfigManager';
 import DevLabModule from './DevLabModule';
 import CompanyLayoutEditor from './CompanyLayoutEditor';
+import MasterVisualBuilder from './MasterVisualBuilder';
 
 interface MasterDashboardProps {
   currentUser: UserAccount;
@@ -43,7 +44,7 @@ interface MasterDashboardProps {
 
 export default function MasterDashboard({ currentUser, onLogout }: MasterDashboardProps) {
   // Tabs
-  const [activeTab, setActiveTab] = useState<'overview' | 'modules' | 'products' | 'plans' | 'companies' | 'layout_editor' | 'site_config' | 'dev_lab'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'master_builder' | 'modules' | 'products' | 'plans' | 'companies' | 'layout_editor' | 'site_config' | 'dev_lab'>('overview');
   const [selectedCompanyForLayoutId, setSelectedCompanyForLayoutId] = useState<string | undefined>(undefined);
   
   // Data State
@@ -511,6 +512,21 @@ export default function MasterDashboard({ currentUser, onLogout }: MasterDashboa
           >
             <Building2 className="h-4.5 w-4.5" />
             <span>Empresas Clientes ({companies.length})</span>
+          </button>
+
+          <div className="pt-3 pb-1 px-2 text-[10px] font-mono font-bold text-amber-500 uppercase tracking-wider border-t border-slate-800/80 mt-2">
+            DESIGNER VISUAL NO-CODE
+          </div>
+
+          <button
+            onClick={() => { setActiveTab('master_builder'); setSearchQuery(''); }}
+            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-medium transition-all ${
+              activeTab === 'master_builder' ? 'bg-amber-500 text-slate-950 font-extrabold shadow-lg shadow-amber-500/20' : 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border border-amber-500/30'
+            }`}
+          >
+            <Sparkles className="h-4.5 w-4.5 text-amber-400 animate-pulse" />
+            <span className="font-extrabold flex-1 text-left">🎨 Construtor Visual Global</span>
+            <span className="bg-amber-500 text-slate-950 text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase">Master</span>
           </button>
 
           <button
@@ -1068,6 +1084,16 @@ export default function MasterDashboard({ currentUser, onLogout }: MasterDashboa
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* --- TAB: CONSTRUTOR VISUAL GLOBAL (MASTER DESIGNER NO-CODE) --- */}
+            {activeTab === 'master_builder' && (
+              <MasterVisualBuilder
+                currentUserRole={currentUser.role}
+                companies={companies}
+                onClose={() => setActiveTab('overview')}
+                triggerToast={(msg) => setToast({ type: 'success', message: msg })}
+              />
             )}
 
             {/* --- TAB: EDITOR DE LAYOUT PERSONALIZADO POR CLIENTE --- */}

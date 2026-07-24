@@ -149,10 +149,26 @@ import {
   INITIAL_SETTINGS
 } from './data';
 
+// Helper to get or generate unique device identifier for local session isolation
+function getDeviceId(): string {
+  try {
+    let deviceId = localStorage.getItem('gestrh_device_id');
+    if (!deviceId) {
+      deviceId = `dev-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      localStorage.setItem('gestrh_device_id', deviceId);
+    }
+    return deviceId;
+  } catch (e) {
+    return 'dev-default-session';
+  }
+}
+
+// Session keys isolated per device/tab
+const getDeviceSessionKey = (): string => `gestrh_session_${getDeviceId()}`;
+
 // Key names for LocalStorage (Firebase Firestore Simulation)
 const KEYS = {
   USERS: 'firebase_users',
-  CURRENT_USER: 'firebase_current_user',
   MODULES: 'firebase_modules',
   PRODUCTS: 'firebase_products',
   PLANS: 'firebase_plans',
@@ -622,8 +638,24 @@ export const firebaseService: FirebaseService = {
   // --- AUTH SERVICE ---
   auth: {
     getCurrentUser(): UserAccount | null {
-      const uStr = localStorage.getItem(KEYS.CURRENT_USER);
-      return uStr ? JSON.parse(uStr) : null;
+      try {
+        // 1. Try active tab session in sessionStorage
+        const tabSession = sessionStorage.getItem('gestrh_tab_session');
+        if (tabSession) {
+          return JSON.parse(tabSession);
+        }
+        // 2. Try device session in localStorage for this specific deviceId
+        const deviceSession = localStorage.getItem(getDeviceSessionKey());
+        if (deviceSession) {
+          const user = JSON.parse(deviceSession);
+          // Restore tab session for fast access
+          sessionStorage.setItem('gestrh_tab_session', JSON.stringify(user));
+          return user;
+        }
+      } catch (e) {
+        console.error('Error getting current user session:', e);
+      }
+      return null;
     },
 
     signIn(email: string, password?: string): Promise<UserAccount> {
@@ -661,7 +693,10 @@ export const firebaseService: FirebaseService = {
             }
           }
 
-          localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(found));
+          // Store session isolated strictly to this tab and this device instance
+          sessionStorage.setItem('gestrh_tab_session', JSON.stringify(found));
+          localStorage.setItem(getDeviceSessionKey(), JSON.stringify(found));
+
           resolve(found);
         }, 600);
       });
@@ -692,8 +727,10 @@ export const firebaseService: FirebaseService = {
           users.push(newUser);
           localStorage.setItem(KEYS.USERS, JSON.stringify(users));
           
-          // Auto log in on sign up
-          localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(newUser));
+          // Auto log in on sign up with isolated session
+          sessionStorage.setItem('gestrh_tab_session', JSON.stringify(newUser));
+          localStorage.setItem(getDeviceSessionKey(), JSON.stringify(newUser));
+
           resolve(newUser);
         }, 800);
       });
@@ -702,7 +739,9 @@ export const firebaseService: FirebaseService = {
     signOut(): Promise<void> {
       return new Promise((resolve) => {
         setTimeout(() => {
-          localStorage.removeItem(KEYS.CURRENT_USER);
+          // Remove session ONLY for this current tab and device instance
+          sessionStorage.removeItem('gestrh_tab_session');
+          localStorage.removeItem(getDeviceSessionKey());
           resolve();
         }, 300);
       });

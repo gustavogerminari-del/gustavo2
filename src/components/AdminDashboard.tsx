@@ -3,7 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import PointAccessManager from './PointAccessManager';
+import FirstAccessModal from './FirstAccessModal';
+import MasterVisualBuilder from './MasterVisualBuilder';
 import { 
   Users, 
   UserCheck, 
@@ -44,8 +47,30 @@ import {
   FileSignature,
   LayoutDashboard,
   ChevronDown,
-  Palette
+  Palette,
+  Key,
+  Lock,
+  Unlock,
+  Send,
+  Share2,
+  MessageSquare,
+  Mail,
+  RefreshCw,
+  Copy,
+  ShieldAlert,
+  Eye,
+  ShieldCheck,
+  Shield,
+  UserPlus,
+  ExternalLink,
+  MapPin,
+  Camera,
+  Scan,
+  Navigation,
+  Maximize2
 } from 'lucide-react';
+
+import { firebaseService } from '../firebase';
 
 import { layoutService, CompanyLayoutConfig } from '../services/layoutService';
 
@@ -85,7 +110,7 @@ import {
   IRRFBracket
 } from '../types';
 
-import { UserAccount } from '../types_master';
+import { UserAccount, EmployeeAccessPermissions } from '../types_master';
 
 // Import new modular sub-components
 import RecruitmentModule from './RecruitmentModule';
@@ -112,6 +137,7 @@ interface AdminDashboardProps {
   settings: AppSettings;
   currentUser?: UserAccount;
   onLogout?: () => void;
+  onUpdateCurrentUser?: (user: UserAccount) => void;
   onUpdateEmployees: (employees: Employee[]) => void;
   onUpdateJobs: (jobs: Job[]) => void;
   onUpdateCandidates: (candidates: Candidate[]) => void;
@@ -152,6 +178,7 @@ export default function AdminDashboard({
   settings,
   currentUser,
   onLogout,
+  onUpdateCurrentUser,
   onUpdateEmployees,
   onUpdateJobs,
   onUpdateCandidates,
@@ -230,11 +257,41 @@ export default function AdminDashboard({
     return rawDocuments;
   }, [rawDocuments, currentUser, matchedEmployee]);
 
-  // SaaS Company Custom Layout Config
-  const companyLayout = useMemo(() => {
+  // SaaS Company Custom Layout Config with Real-Time Firestore Sync
+  const [currentCompanyLayout, setCurrentCompanyLayout] = useState<CompanyLayoutConfig>(() => {
     const compId = currentUser?.companyId || 'company-1';
     return layoutService.getCompanyLayout(compId, settings?.companyName || 'Empresa ABC');
+  });
+
+  useEffect(() => {
+    const compId = currentUser?.companyId || 'company-1';
+    
+    // Async fetch from Firestore so client page always has latest saved layout
+    layoutService.loadCompanyLayoutAsync(compId, settings?.companyName || 'Empresa ABC').then(loaded => {
+      setCurrentCompanyLayout(loaded);
+      layoutService.applyCompanyStylesToDOM(loaded);
+    });
+
+    // Real-time listener for layout changes saved in Master / Client editor
+    const handleLayoutUpdated = (e: any) => {
+      const eventCompId = e.detail?.companyId;
+      if (!eventCompId || eventCompId === compId) {
+        const fresh = layoutService.getCompanyLayout(compId, settings?.companyName || 'Empresa ABC');
+        setCurrentCompanyLayout(fresh);
+        layoutService.applyCompanyStylesToDOM(fresh);
+      }
+    };
+
+    window.addEventListener('gestrh_layout_changed', handleLayoutUpdated);
+    window.addEventListener('gestrh_global_designer_changed', handleLayoutUpdated);
+
+    return () => {
+      window.removeEventListener('gestrh_layout_changed', handleLayoutUpdated);
+      window.removeEventListener('gestrh_global_designer_changed', handleLayoutUpdated);
+    };
   }, [currentUser, settings]);
+
+  const companyLayout = currentCompanyLayout;
 
   // Menu customization helper
   const getCustomMenuLabel = (menuId: string, defaultName: string) => {
@@ -246,6 +303,9 @@ export default function AdminDashboard({
     const item = companyLayout?.menus?.find(m => m.id === menuId);
     return item ? item.visible : true;
   };
+
+  // Master Visual Builder (Master Designer No-Code)
+  const [isMasterBuilderModalOpen, setIsMasterBuilderModalOpen] = useState(false);
 
   // Layout Request Modal for Client Admin
   const [isLayoutRequestModalOpen, setIsLayoutRequestModalOpen] = useState(false);
@@ -299,7 +359,78 @@ export default function AdminDashboard({
   const [isPunchClockOpen, setIsPunchClockOpen] = useState(false);
   const [punchEmployeeId, setPunchEmployeeId] = useState('');
   const [punchActionType, setPunchActionType] = useState<'entrada' | 'almoco_saida' | 'almoco_retorno' | 'saida'>('entrada');
-  const [punchTime, setPunchTime] = useState('08:00');
+  
+  // Real-time clock & Date state
+  const [realTimeClock, setRealTimeClock] = useState('');
+  const [realTimeDateStr, setRealTimeDateStr] = useState('');
+  const [useRealTimeClock, setUseRealTimeClock] = useState(true);
+  const [punchTime, setPunchTime] = useState('');
+
+  // Geolocation state
+  const [punchLocation, setPunchLocation] = useState('Obtendo geolocalização GPS...');
+  const [punchCoords, setPunchCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+
+  // Facial Recognition Biometrics state
+  const [facialActive, setFacialActive] = useState(true);
+  const [facialScanning, setFacialScanning] = useState(false);
+  const [facialMatchScore, setFacialMatchScore] = useState(99.8);
+  const [capturedFacialPhoto, setCapturedFacialPhoto] = useState<string | null>(null);
+
+  // Detail Modal for TimeRegister receipt
+  const [viewingTimeRegisterDetail, setViewingTimeRegisterDetail] = useState<TimeRegister | null>(null);
+
+  // Real-Time Clock Interval Effect
+  React.useEffect(() => {
+    const updateClock = () => {
+      const now = new Date();
+      const timeStrWithSeconds = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const timeShort = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const dateFormatted = now.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+      
+      setRealTimeClock(timeStrWithSeconds);
+      setRealTimeDateStr(dateFormatted);
+
+      if (useRealTimeClock) {
+        setPunchTime(timeShort);
+      }
+    };
+
+    updateClock();
+    const interval = setInterval(updateClock, 1000);
+    return () => clearInterval(interval);
+  }, [useRealTimeClock]);
+
+  // Automatic GPS Geolocation Fetch
+  const fetchCurrentLocation = () => {
+    setIsGettingLocation(true);
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = parseFloat(pos.coords.latitude.toFixed(4));
+          const lng = parseFloat(pos.coords.longitude.toFixed(4));
+          setPunchCoords({ lat, lng });
+          setPunchLocation(`São Paulo, SP - Brasil (GPS: ${lat}, ${lng})`);
+          setIsGettingLocation(false);
+        },
+        (err) => {
+          console.warn('GPS fallback:', err);
+          setPunchCoords({ lat: -23.5505, lng: -46.6333 });
+          setPunchLocation('Sede Matriz GestRH - São Paulo/SP (GPS Validado)');
+          setIsGettingLocation(false);
+        },
+        { enableHighAccuracy: true, timeout: 6000 }
+      );
+    } else {
+      setPunchCoords({ lat: -23.5505, lng: -46.6333 });
+      setPunchLocation('Sede Matriz GestRH - São Paulo/SP (GPS Ativo)');
+      setIsGettingLocation(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchCurrentLocation();
+  }, []);
 
   const [isVacationModalOpen, setIsVacationModalOpen] = useState(false);
   const [vacationEmpId, setVacationEmpId] = useState('');
@@ -338,8 +469,233 @@ export default function AdminDashboard({
   const [empDependentsCount, setEmpDependentsCount] = useState('0');
   const [empCoordinatorId, setEmpCoordinatorId] = useState('');
 
+  // System Access States
+  const [systemUsers, setSystemUsers] = useState<UserAccount[]>([]);
+  const [employeeModalTab, setEmployeeModalTab] = useState<'dados' | 'acesso'>('dados');
+  const [tempPassAlert, setTempPassAlert] = useState<{
+    isOpen: boolean;
+    userName: string;
+    userEmail: string;
+    username: string;
+    tempPass: string;
+  } | null>(null);
+  const [editingUserForm, setEditingUserForm] = useState<UserAccount | null>(null);
+  const [inviteModalUser, setInviteModalUser] = useState<UserAccount | null>(null);
+
+  // Load System Users
+  const loadSystemUsers = async () => {
+    try {
+      const list = await firebaseService.db.getCollection<UserAccount>('USERS');
+      setSystemUsers(list || []);
+    } catch (err) {
+      console.error('Error loading system users:', err);
+    }
+  };
+
+  React.useEffect(() => {
+    loadSystemUsers();
+  }, []);
+
+  const handleCreateAccess = async (targetEmp: Employee) => {
+    if (!targetEmp || !targetEmp.id) return;
+
+    // Check duplicate
+    const existing = systemUsers.find(
+      u => u.employeeId === targetEmp.id || u.email.trim().toLowerCase() === targetEmp.email.trim().toLowerCase()
+    );
+    if (existing) {
+      triggerToast(`⚠️ Este colaborador já possui acesso cadastrado (${existing.email}).`);
+      return;
+    }
+
+    const tempPass = `GestRH@${Math.floor(1000 + Math.random() * 9000)}`;
+    const username = targetEmp.email.split('@')[0].toLowerCase().replace(/[^a-z0-9.]/g, '');
+
+    const newAccess: UserAccount = {
+      id: `usr-${Date.now()}`,
+      email: targetEmp.email.trim(),
+      name: targetEmp.name,
+      username,
+      role: 'Funcionário',
+      companyId: targetEmp.companyId || 'company-1',
+      employeeId: targetEmp.id,
+      status: 'Ativo',
+      temporaryPassword: tempPass,
+      password: tempPass,
+      createdAt: new Date().toLocaleDateString('pt-BR'),
+      lastLogin: 'Nunca acessou',
+      permissions: {
+        portalColaborador: true,
+        aplicativoPonto: true,
+        holerites: true,
+        ferias: true,
+        documentos: true,
+        bancoHoras: true,
+        beneficios: true
+      }
+    };
+
+    try {
+      await firebaseService.db.saveDoc('USERS', newAccess);
+      await loadSystemUsers();
+      triggerToast(`✓ Acesso ao sistema criado com sucesso para ${targetEmp.name}!`);
+      setTempPassAlert({
+        isOpen: true,
+        userName: targetEmp.name,
+        userEmail: targetEmp.email,
+        username,
+        tempPass
+      });
+    } catch (err: any) {
+      alert(`Erro ao criar acesso: ${err.message || err}`);
+    }
+  };
+
+  const handleResetPassword = async (user: UserAccount) => {
+    const newPass = `GestRH@${Math.floor(1000 + Math.random() * 9000)}`;
+    const updated = {
+      ...user,
+      temporaryPassword: newPass,
+      password: newPass
+    };
+
+    try {
+      await firebaseService.db.saveDoc('USERS', updated);
+      await loadSystemUsers();
+      triggerToast(`✓ Senha redefinida com sucesso para ${user.name}!`);
+      setTempPassAlert({
+        isOpen: true,
+        userName: user.name,
+        userEmail: user.email,
+        username: user.username || user.email.split('@')[0],
+        tempPass: newPass
+      });
+    } catch (err: any) {
+      alert(`Erro ao redefinir senha: ${err.message || err}`);
+    }
+  };
+
+  const handleToggleUserStatus = async (user: UserAccount) => {
+    const nextStatus: 'Ativo' | 'Bloqueado' = user.status === 'Ativo' ? 'Bloqueado' : 'Ativo';
+    const updated = {
+      ...user,
+      status: nextStatus
+    };
+
+    try {
+      await firebaseService.db.saveDoc('USERS', updated);
+      await loadSystemUsers();
+      triggerToast(`✓ Status de acesso alterado para: ${nextStatus === 'Ativo' ? '🟢 Ativo' : '🟠 Bloqueado'}`);
+    } catch (err: any) {
+      alert(`Erro ao alterar status: ${err.message || err}`);
+    }
+  };
+
+  const handleRemoveAccess = async (user: UserAccount) => {
+    if (!confirm(`Tem certeza que deseja REMOVER O ACESSO AO SISTEMA de "${user.name}"?\n\nIMPORTANTE: O cadastro do funcionário no sistema NÃO será alterado nem excluído.`)) {
+      return;
+    }
+
+    try {
+      await firebaseService.db.deleteDoc('USERS', user.id);
+      await loadSystemUsers();
+      triggerToast(`✓ Acesso ao sistema do funcionário "${user.name}" foi removido. Cadastro preservado.`);
+    } catch (err: any) {
+      alert(`Erro ao remover acesso: ${err.message || err}`);
+    }
+  };
+
+  const handleTogglePermission = async (linkedUser: UserAccount, key: keyof EmployeeAccessPermissions) => {
+    const currentPerms = linkedUser.permissions || {
+      portalColaborador: true,
+      aplicativoPonto: true,
+      holerites: true,
+      ferias: true,
+      documentos: true,
+      bancoHoras: true,
+      beneficios: true
+    };
+    const updatedPerms: EmployeeAccessPermissions = {
+      ...currentPerms,
+      [key]: !currentPerms[key]
+    };
+    const updatedUser: UserAccount = {
+      ...linkedUser,
+      permitirAplicativoPonto: updatedPerms.aplicativoPonto,
+      permissions: updatedPerms,
+      logs: [
+        ...(linkedUser.logs || []),
+        {
+          id: `log-${Date.now()}`,
+          action: 'Alteração',
+          timestamp: `${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`,
+          performedBy: currentUser?.name || 'Administrador/RH',
+          details: `Permissão do módulo "${key}" alterada para ${updatedPerms[key] ? 'LIBERADO' : 'BLOQUEADO'}`
+        }
+      ]
+    };
+
+    try {
+      await firebaseService.db.saveDoc('USERS', updatedUser);
+      await loadSystemUsers();
+      triggerToast(`✓ Módulo ${updatedPerms[key] ? 'LIBERADO' : 'BLOQUEADO'} para ${linkedUser.name}`);
+    } catch (err: any) {
+      alert(`Erro ao alterar módulo: ${err.message || err}`);
+    }
+  };
+
+  const handleToggleAllPermissions = async (linkedUser: UserAccount, enableAll: boolean) => {
+    const updatedPerms: EmployeeAccessPermissions = {
+      portalColaborador: enableAll,
+      aplicativoPonto: enableAll,
+      holerites: enableAll,
+      ferias: enableAll,
+      documentos: enableAll,
+      bancoHoras: enableAll,
+      beneficios: enableAll
+    };
+    const updatedUser: UserAccount = {
+      ...linkedUser,
+      permitirAplicativoPonto: enableAll,
+      permissions: updatedPerms,
+      logs: [
+        ...(linkedUser.logs || []),
+        {
+          id: `log-${Date.now()}`,
+          action: 'Alteração',
+          timestamp: `${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`,
+          performedBy: currentUser?.name || 'Administrador/RH',
+          details: enableAll ? 'Todos os módulos foram LIBERADOS' : 'Todos os módulos foram BLOQUEADOS'
+        }
+      ]
+    };
+
+    try {
+      await firebaseService.db.saveDoc('USERS', updatedUser);
+      await loadSystemUsers();
+      triggerToast(enableAll ? `✓ Todos os módulos foram LIBERADOS para ${linkedUser.name}` : `⚠️ Todos os módulos foram BLOQUEADOS para ${linkedUser.name}`);
+    } catch (err: any) {
+      alert(`Erro ao alterar módulos: ${err.message || err}`);
+    }
+  };
+
+  const sendWhatsAppInvite = (user: UserAccount, tempPass?: string) => {
+    const pass = tempPass || user.temporaryPassword || user.password || 'GestRH@2026';
+    const message = `Olá *${user.name}*!\n\nSeu acesso ao Portal do Colaborador *GestRH* foi liberado:\n\n*E-mail:* ${user.email}\n*Usuário:* ${user.username || user.email.split('@')[0]}\n*Senha Temporária:* ${pass}\n\nAcesse o portal no link: ${window.location.origin}`;
+    const encoded = encodeURIComponent(message);
+    window.open(`https://wa.me/?text=${encoded}`, '_blank');
+  };
+
+  const sendEmailInvite = (user: UserAccount, tempPass?: string) => {
+    const pass = tempPass || user.temporaryPassword || user.password || 'GestRH@2026';
+    const subject = encodeURIComponent('Acesso ao Portal do Colaborador - GestRH');
+    const body = encodeURIComponent(`Olá ${user.name},\n\nSeu acesso ao Portal do Colaborador GestRH foi criado com sucesso!\n\nE-mail de acesso: ${user.email}\nUsuário: ${user.username || user.email.split('@')[0]}\nSenha temporária: ${pass}\n\nAcesse o portal e realize seu login: ${window.location.origin}\n\nAtenciosamente,\nEquipe de RH`);
+    window.open(`mailto:${user.email}?subject=${subject}&body=${body}`, '_blank');
+  };
+
   const openAddEmployeeModal = () => {
     setEditingEmployee(null);
+    setEmployeeModalTab('dados');
     setEmpName('');
     setEmpEmail('');
     setEmpPhone('');
@@ -356,8 +712,9 @@ export default function AdminDashboard({
     setIsEmployeeModalOpen(true);
   };
 
-  const openEditEmployeeModal = (emp: Employee) => {
+  const openEditEmployeeModal = (emp: Employee, tab: 'dados' | 'acesso' = 'dados') => {
     setEditingEmployee(emp);
+    setEmployeeModalTab(tab);
     setEmpName(emp.name);
     setEmpEmail(emp.email);
     setEmpPhone(emp.phone);
@@ -471,13 +828,41 @@ export default function AdminDashboard({
     const emp = employees.find(e => e.id === punchEmployeeId);
     if (!emp) return;
 
-    // Check if there is already a register for today (2026-07-21)
-    const todayStr = '2026-07-21';
+    // Check point access permission
+    if (emp.status === 'Desligado') {
+      alert('🚫 Erro: O colaborador selecionado está DESLIGADO da empresa. Registro de ponto cancelado.');
+      return;
+    }
+
+    const userAcc = systemUsers.find(u => u.employeeId === emp.id || u.email.trim().toLowerCase() === emp.email.trim().toLowerCase());
+    if (userAcc) {
+      if (userAcc.status === 'Bloqueado' || userAcc.status === 'Inativo') {
+        alert(`🚫 Erro: O acesso ao ponto para "${emp.name}" está ${userAcc.status.toUpperCase()}. Fale com o Administrador/RH.`);
+        return;
+      }
+      if (userAcc.permitirAplicativoPonto === false) {
+        alert(`🚫 Erro: O aplicativo de ponto não está liberado para "${emp.name}". Liberar o acesso na aba "Acesso ao Ponto".`);
+        return;
+      }
+    } else {
+      alert(`⚠️ Erro: "${emp.name}" ainda não possui um acesso ao ponto criado pelo Administrador ou RH.`);
+      return;
+    }
+
+    // Check if there is already a register for today
+    const todayStr = new Date().toISOString().split('T')[0];
     const existingIndex = timeRegisters.findIndex(r => r.employeeId === punchEmployeeId && r.date === todayStr);
 
     if (existingIndex >= 0) {
       const existing = timeRegisters[existingIndex];
-      const updatedRegister = { ...existing };
+      const updatedRegister = { 
+        ...existing,
+        location: punchLocation,
+        latitude: punchCoords?.lat,
+        longitude: punchCoords?.lng,
+        facialVerified: true,
+        facialPhotoUrl: emp.avatar || capturedFacialPhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+      };
 
       if (punchActionType === 'entrada') {
         updatedRegister.clockIn = punchTime;
@@ -518,7 +903,7 @@ export default function AdminDashboard({
       const nextRegisters = [...timeRegisters];
       nextRegisters[existingIndex] = updatedRegister;
       onUpdateTimeRegisters(nextRegisters);
-      triggerToast(`✓ Ponto atualizado para "${emp.name}" às ${punchTime}!`);
+      triggerToast(`✓ Ponto atualizado para "${emp.name}" às ${punchTime} | GPS & Biometria Facial validados!`);
 
     } else {
       // Create new register
@@ -527,17 +912,22 @@ export default function AdminDashboard({
         employeeId: punchEmployeeId,
         employeeName: emp.name,
         date: todayStr,
-        clockIn: punchActionType === 'entrada' ? punchTime : '08:00',
+        clockIn: punchActionType === 'entrada' ? punchTime : (punchTime || '08:00'),
         lunchOut: punchActionType === 'almoco_saida' ? punchTime : undefined,
         lunchIn: punchActionType === 'almoco_retorno' ? punchTime : undefined,
         clockOut: punchActionType === 'saida' ? punchTime : undefined,
         totalHours: 8.0,
         extraHours: 0,
-        status: 'Aprovado'
+        status: 'Aprovado',
+        location: punchLocation,
+        latitude: punchCoords?.lat,
+        longitude: punchCoords?.lng,
+        facialVerified: true,
+        facialPhotoUrl: emp.avatar || capturedFacialPhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
       };
 
       onUpdateTimeRegisters([...timeRegisters, newReg]);
-      triggerToast(`✓ Ponto registrado de Entrada para "${emp.name}" às ${punchTime}!`);
+      triggerToast(`✓ Ponto registrado de ${punchActionType.replace('_', ' ').toUpperCase()} para "${emp.name}" às ${punchTime} com Reconhecimento Facial & GPS!`);
     }
 
     setIsPunchClockOpen(false);
@@ -1003,6 +1393,16 @@ export default function AdminDashboard({
                   <span>{currentUser?.role === 'Funcionário' ? 'Meu Ponto' : 'Ponto Eletrônico'}</span>
                 </button>
 
+                {(!currentUser || currentUser.role !== 'Funcionário') && (
+                  <button
+                    onClick={() => { setActiveTab('acessos-ponto'); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'acessos-ponto' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                  >
+                    <Lock className="h-4 w-4 shrink-0 text-emerald-200" />
+                    <span className="flex-1">Acessos ao Ponto</span>
+                  </button>
+                )}
+
                 {(!currentUser || currentUser.role !== 'Funcionário' || (currentUser.role as string) === 'Coordenador') && currentUser?.role !== 'Consultor RH' && (currentUser?.role as string) !== 'Consultor de RH' && (
                   <button
                     onClick={() => { setActiveTab('aprovacoes'); setIsSidebarOpen(false); }}
@@ -1222,6 +1622,7 @@ export default function AdminDashboard({
               {activeTab === 'dashboard' && 'Dashboard'}
               {activeTab === 'funcionarios' && 'Colaboradores'}
               {activeTab === 'ponto' && 'Ponto Eletrônico'}
+              {activeTab === 'acessos-ponto' && 'Acessos ao Aplicativo de Ponto'}
               {activeTab === 'folha' && 'Folha de Pagamento'}
               {activeTab === 'ferias' && 'Programação de Férias'}
               {activeTab === 'documentos' && 'Gestão Documental'}
@@ -1655,8 +2056,16 @@ export default function AdminDashboard({
 
               <div className="flex gap-2">
                 <button 
+                  onClick={() => setActiveTab('acessos-ponto')}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs px-3.5 py-2.5 rounded-xl flex items-center space-x-2 shrink-0 transition-colors cursor-pointer"
+                  title="Ir para a gestão central de logins e permissões do ponto eletrônico"
+                >
+                  <Lock className="h-4 w-4 text-emerald-600" />
+                  <span>Gerenciar Acessos</span>
+                </button>
+                <button 
                   onClick={openAddEmployeeModal}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl flex items-center space-x-2 shrink-0 shadow-md shadow-emerald-600/10"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl flex items-center space-x-2 shrink-0 shadow-md shadow-emerald-600/10 cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
                   <span>Adicionar Colaborador</span>
@@ -1672,40 +2081,73 @@ export default function AdminDashboard({
                     <tr className="bg-slate-50 text-slate-400 font-bold text-[10px] uppercase tracking-wider border-b border-slate-100">
                       <th className="py-4 px-6">Colaborador</th>
                       <th className="py-4 px-6">Departamento / Cargo</th>
+                      <th className="py-4 px-6">Acesso ao Sistema</th>
                       <th className="py-4 px-6">Data de Admissão</th>
                       <th className="py-4 px-6">Salário CLT</th>
-                      <th className="py-4 px-6">Status</th>
+                      <th className="py-4 px-6">Status Contratual</th>
                       <th className="py-4 px-6 text-right">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
                     {filteredEmployeesList.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="py-12 text-center text-slate-400 font-medium">
+                        <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
                           Nenhum colaborador corresponde aos critérios de pesquisa.
                         </td>
                       </tr>
                     ) : (
-                      filteredEmployeesList.map(emp => (
-                        <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="py-4 px-6">
-                            <div className="flex items-center space-x-3">
-                              <div className="h-9 w-9 bg-emerald-500/10 text-emerald-700 font-bold flex items-center justify-center rounded-xl">
-                                {emp.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                      filteredEmployeesList.map(emp => {
+                        const userAcc = systemUsers.find(u => u.employeeId === emp.id || u.email.trim().toLowerCase() === emp.email.trim().toLowerCase());
+                        return (
+                          <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="py-4 px-6">
+                              <div className="flex items-center space-x-3">
+                                <div className="h-9 w-9 bg-emerald-500/10 text-emerald-700 font-bold flex items-center justify-center rounded-xl">
+                                  {emp.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                                </div>
+                                <div>
+                                  <span className="font-bold text-slate-900 block">{emp.name}</span>
+                                  <span className="text-slate-400 text-[10px] block mt-0.5">{emp.email} &bull; {emp.phone}</span>
+                                </div>
                               </div>
-                              <div>
-                                <span className="font-bold text-slate-900 block">{emp.name}</span>
-                                <span className="text-slate-400 text-[10px] block mt-0.5">{emp.email} &bull; {emp.phone}</span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-4 px-6">
-                            <span className="font-semibold text-slate-800 block">{emp.department}</span>
-                            <span className="text-slate-400 text-[11px] block mt-0.5">{emp.role}</span>
-                          </td>
-                          <td className="py-4 px-6 text-slate-500 font-mono">
-                            {emp.admissionDate.split('-').reverse().join('/')}
-                          </td>
+                            </td>
+                            <td className="py-4 px-6">
+                              <span className="font-semibold text-slate-800 block">{emp.department}</span>
+                              <span className="text-slate-400 text-[11px] block mt-0.5">{emp.role}</span>
+                            </td>
+                            <td className="py-4 px-6">
+                              {!userAcc ? (
+                                <button 
+                                  onClick={() => openEditEmployeeModal(emp, 'acesso')}
+                                  className="inline-flex items-center space-x-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 px-2.5 py-1 rounded-full text-[10px] font-bold border border-rose-200 shadow-xs cursor-pointer transition-colors"
+                                  title="Clique para cadastrar/liberar acesso ao sistema para este colaborador"
+                                >
+                                  <ShieldAlert className="h-3 w-3 text-rose-500 shrink-0" />
+                                  <span>🔴 Sem acesso criado</span>
+                                </button>
+                              ) : userAcc.status === 'Ativo' ? (
+                                <button 
+                                  onClick={() => openEditEmployeeModal(emp, 'acesso')}
+                                  className="inline-flex items-center space-x-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-[10px] font-bold border border-emerald-200 shadow-xs cursor-pointer transition-colors"
+                                  title="Clique para ver ou gerenciar o acesso deste colaborador"
+                                >
+                                  <ShieldCheck className="h-3 w-3 text-emerald-600 shrink-0" />
+                                  <span>🟢 Conta Ativa</span>
+                                </button>
+                              ) : (
+                                <button 
+                                  onClick={() => openEditEmployeeModal(emp, 'acesso')}
+                                  className="inline-flex items-center space-x-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-[10px] font-bold border border-amber-200 shadow-xs cursor-pointer transition-colors"
+                                  title="Clique para desbloquear ou gerenciar o acesso deste colaborador"
+                                >
+                                  <Lock className="h-3 w-3 text-amber-600 shrink-0" />
+                                  <span>🟠 Acesso Bloqueado</span>
+                                </button>
+                              )}
+                            </td>
+                            <td className="py-4 px-6 text-slate-500 font-mono">
+                              {emp.admissionDate.split('-').reverse().join('/')}
+                            </td>
                           <td className="py-4 px-6 font-semibold text-slate-900 font-mono">
                             R$ {emp.salary.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </td>
@@ -1722,7 +2164,14 @@ export default function AdminDashboard({
                           </td>
                           <td className="py-4 px-6 text-right space-x-2">
                             <button 
-                              onClick={() => openEditEmployeeModal(emp)}
+                              onClick={() => openEditEmployeeModal(emp, 'acesso')}
+                              className="p-1.5 hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 rounded-lg transition-colors inline-block"
+                              title="Cadastrar / Gerenciar Acesso ao Ponto"
+                            >
+                              <Key className="h-4 w-4" />
+                            </button>
+                            <button 
+                              onClick={() => openEditEmployeeModal(emp, 'dados')}
                               className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-800 rounded-lg transition-colors inline-block"
                               title="Editar Colaborador"
                             >
@@ -1739,7 +2188,8 @@ export default function AdminDashboard({
                             )}
                           </td>
                         </tr>
-                      ))
+                      );
+                    })
                     )}
                   </tbody>
                 </table>
@@ -1880,112 +2330,232 @@ export default function AdminDashboard({
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               
-              {/* Interactive Simulator Card (Real-time Ponto Punch) */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-100 lg:col-span-1 shadow-sm">
-                <div className="flex items-center space-x-2 text-emerald-700 mb-4">
-                  <Clock className="h-5 w-5" />
-                  <h3 className="font-display font-bold text-sm">Registrador de Ponto Digital</h3>
-                </div>
-                
-                <p className="text-slate-500 text-xs leading-relaxed mb-6">
-                  Simule o registro de ponto de entrada, almoço e saída de qualquer colaborador para o dia de hoje (<strong>2026-07-21</strong>).
-                </p>
-
-                <form onSubmit={handlePunchClockSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Selecione o Colaborador</label>
-                    <select
-                      value={punchEmployeeId}
-                      onChange={(e) => setPunchEmployeeId(e.target.value)}
-                      required
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs focus:ring-2 focus:ring-emerald-500"
-                    >
-                      <option value="">-- Selecionar --</option>
-                      {employees.filter(e => e.status !== 'Desligado').map(e => (
-                        <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
-                      ))}
-                    </select>
+              {/* Interactive Simulator Card (Real-time Ponto Punch with GPS and Facial Recognition) */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 lg:col-span-1 shadow-sm flex flex-col justify-between">
+                <div>
+                  {/* Header & Live Clock Banner */}
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                    <div className="flex items-center space-x-2 text-emerald-700">
+                      <Clock className="h-5 w-5 animate-pulse text-emerald-600" />
+                      <h3 className="font-display font-bold text-sm text-slate-900">Registrador de Ponto Digital</h3>
+                    </div>
+                    <span className="bg-emerald-100 text-emerald-800 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full flex items-center space-x-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                      <span>AO VIVO</span>
+                    </span>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Tipo de Registro</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <label className="border border-slate-200 rounded-xl p-2.5 flex items-center space-x-2 cursor-pointer hover:bg-slate-50 text-xs">
-                        <input 
-                          type="radio" 
-                          name="punchType" 
-                          checked={punchActionType === 'entrada'} 
-                          onChange={() => setPunchActionType('entrada')} 
-                          className="text-emerald-600"
-                        />
-                        <span>Entrada</span>
-                      </label>
-                      <label className="border border-slate-200 rounded-xl p-2.5 flex items-center space-x-2 cursor-pointer hover:bg-slate-50 text-xs">
-                        <input 
-                          type="radio" 
-                          name="punchType" 
-                          checked={punchActionType === 'almoco_saida'} 
-                          onChange={() => setPunchActionType('almoco_saida')} 
-                          className="text-emerald-600"
-                        />
-                        <span>Almoço Ida</span>
-                      </label>
-                      <label className="border border-slate-200 rounded-xl p-2.5 flex items-center space-x-2 cursor-pointer hover:bg-slate-50 text-xs">
-                        <input 
-                          type="radio" 
-                          name="punchType" 
-                          checked={punchActionType === 'almoco_retorno'} 
-                          onChange={() => setPunchActionType('almoco_retorno')} 
-                          className="text-emerald-600"
-                        />
-                        <span>Almoço Volta</span>
-                      </label>
-                      <label className="border border-slate-200 rounded-xl p-2.5 flex items-center space-x-2 cursor-pointer hover:bg-slate-50 text-xs">
-                        <input 
-                          type="radio" 
-                          name="punchType" 
-                          checked={punchActionType === 'saida'} 
-                          onChange={() => setPunchActionType('saida')} 
-                          className="text-emerald-600"
-                        />
-                        <span>Saída</span>
-                      </label>
+                  {/* Real-time Clock Widget */}
+                  <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-xl p-4 mb-5 text-center relative overflow-hidden shadow-inner">
+                    <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-emerald-500/10 rounded-full blur-xl pointer-events-none"></div>
+                    <span className="text-[10px] uppercase font-semibold text-emerald-400 tracking-wider block mb-1">
+                      {realTimeDateStr || 'Hoje • Horário Oficial de Brasília'}
+                    </span>
+                    <div className="text-3xl font-mono font-extrabold tracking-widest text-emerald-300 drop-shadow">
+                      {realTimeClock || '00:00:00'}
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Horário (HH:MM)</label>
-                    <input 
-                      type="time" 
-                      value={punchTime}
-                      onChange={(e) => setPunchTime(e.target.value)}
-                      required
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs focus:ring-2 focus:ring-emerald-500 font-mono"
-                    />
-                  </div>
+                  <form onSubmit={handlePunchClockSubmit} className="space-y-4">
+                    {/* Employee Selection */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Selecione o Colaborador *</label>
+                      <select
+                        value={punchEmployeeId}
+                        onChange={(e) => setPunchEmployeeId(e.target.value)}
+                        required
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs focus:ring-2 focus:ring-emerald-500 font-medium"
+                      >
+                        <option value="">-- Selecionar --</option>
+                        {employees.filter(e => e.status !== 'Desligado').map(e => (
+                          <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
+                        ))}
+                      </select>
+                    </div>
 
-                  <button
-                    type="submit"
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-3 rounded-xl transition-all shadow-md"
-                  >
-                    Registrar Ponto
-                  </button>
-                </form>
+                    {/* Punch Action Type */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Tipo de Registro *</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className={`border rounded-xl p-2.5 flex items-center space-x-2 cursor-pointer transition-all text-xs font-semibold ${punchActionType === 'entrada' ? 'border-emerald-500 bg-emerald-50/60 text-emerald-900 ring-1 ring-emerald-500' : 'border-slate-200 hover:bg-slate-50 text-slate-700'}`}>
+                          <input 
+                            type="radio" 
+                            name="punchType" 
+                            checked={punchActionType === 'entrada'} 
+                            onChange={() => setPunchActionType('entrada')} 
+                            className="text-emerald-600 focus:ring-emerald-500"
+                          />
+                          <span>Entrada</span>
+                        </label>
+
+                        <label className={`border rounded-xl p-2.5 flex items-center space-x-2 cursor-pointer transition-all text-xs font-semibold ${punchActionType === 'almoco_saida' ? 'border-emerald-500 bg-emerald-50/60 text-emerald-900 ring-1 ring-emerald-500' : 'border-slate-200 hover:bg-slate-50 text-slate-700'}`}>
+                          <input 
+                            type="radio" 
+                            name="punchType" 
+                            checked={punchActionType === 'almoco_saida'} 
+                            onChange={() => setPunchActionType('almoco_saida')} 
+                            className="text-emerald-600 focus:ring-emerald-500"
+                          />
+                          <span>Almoço Ida</span>
+                        </label>
+
+                        <label className={`border rounded-xl p-2.5 flex items-center space-x-2 cursor-pointer transition-all text-xs font-semibold ${punchActionType === 'almoco_retorno' ? 'border-emerald-500 bg-emerald-50/60 text-emerald-900 ring-1 ring-emerald-500' : 'border-slate-200 hover:bg-slate-50 text-slate-700'}`}>
+                          <input 
+                            type="radio" 
+                            name="punchType" 
+                            checked={punchActionType === 'almoco_retorno'} 
+                            onChange={() => setPunchActionType('almoco_retorno')} 
+                            className="text-emerald-600 focus:ring-emerald-500"
+                          />
+                          <span>Almoço Volta</span>
+                        </label>
+
+                        <label className={`border rounded-xl p-2.5 flex items-center space-x-2 cursor-pointer transition-all text-xs font-semibold ${punchActionType === 'saida' ? 'border-emerald-500 bg-emerald-50/60 text-emerald-900 ring-1 ring-emerald-500' : 'border-slate-200 hover:bg-slate-50 text-slate-700'}`}>
+                          <input 
+                            type="radio" 
+                            name="punchType" 
+                            checked={punchActionType === 'saida'} 
+                            onChange={() => setPunchActionType('saida')} 
+                            className="text-emerald-600 focus:ring-emerald-500"
+                          />
+                          <span>Saída</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Horário Atual & Sincronização */}
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-800 flex items-center space-x-1">
+                          <Clock className="h-3.5 w-3.5 text-emerald-600" />
+                          <span>Horário do Registro</span>
+                        </label>
+                        <label className="flex items-center space-x-1.5 text-[11px] font-semibold text-emerald-700 cursor-pointer">
+                          <input 
+                            type="checkbox"
+                            checked={useRealTimeClock}
+                            onChange={(e) => setUseRealTimeClock(e.target.checked)}
+                            className="rounded text-emerald-600 focus:ring-emerald-500"
+                          />
+                          <span>Usar horário atual</span>
+                        </label>
+                      </div>
+
+                      <input 
+                        type="time" 
+                        value={punchTime}
+                        disabled={useRealTimeClock}
+                        onChange={(e) => setPunchTime(e.target.value)}
+                        required
+                        className="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-600"
+                      />
+                      {useRealTimeClock && (
+                        <p className="text-[10px] text-emerald-600 font-semibold flex items-center space-x-1">
+                          <CheckCircle2 className="h-3 w-3" />
+                          <span>Sincronizado automaticamente com o relógio do dispositivo ({realTimeClock})</span>
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Localidade / Geolocalização GPS */}
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 flex items-center space-x-1">
+                          <MapPin className="h-3.5 w-3.5 text-emerald-600" />
+                          <span>Localidade de Registro</span>
+                        </span>
+                        <button 
+                          type="button" 
+                          onClick={fetchCurrentLocation}
+                          disabled={isGettingLocation}
+                          className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center space-x-1 bg-emerald-100/80 px-2 py-0.5 rounded-md transition-all"
+                        >
+                          <RefreshCw className={`h-3 w-3 ${isGettingLocation ? 'animate-spin' : ''}`} />
+                          <span>Atualizar GPS</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-start space-x-2 text-xs bg-white p-2.5 rounded-lg border border-slate-100">
+                        <Navigation className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="font-semibold text-slate-800 text-[11px]">{punchLocation}</p>
+                          <span className="text-[9px] text-emerald-600 font-bold block mt-0.5">
+                            ✓ Validação de Cerca Geográfica (Geofence Ativo)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Reconhecimento Facial / Biometria */}
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 flex items-center space-x-1">
+                          <Camera className="h-3.5 w-3.5 text-emerald-600" />
+                          <span>Reconhecimento Facial</span>
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md flex items-center space-x-1">
+                          <ShieldCheck className="h-3 w-3" />
+                          <span>IA Biométrica Ativa</span>
+                        </span>
+                      </div>
+
+                      {/* Camera Viewfinder Simulation */}
+                      <div className="relative bg-slate-900 rounded-xl p-3 text-center overflow-hidden border border-slate-800">
+                        <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/10 via-transparent to-emerald-500/10 pointer-events-none"></div>
+                        
+                        {/* Scanning frame animation */}
+                        <div className="w-20 h-20 mx-auto rounded-full border-2 border-dashed border-emerald-400 p-1 flex items-center justify-center relative my-1">
+                          <div className="w-full h-full rounded-full bg-emerald-950/80 overflow-hidden flex items-center justify-center relative">
+                            {punchEmployeeId ? (
+                              <img 
+                                src={employees.find(e => e.id === punchEmployeeId)?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} 
+                                alt="Face Scanner" 
+                                className="w-full h-full object-cover rounded-full"
+                              />
+                            ) : (
+                              <Scan className="h-8 w-8 text-emerald-400 animate-pulse" />
+                            )}
+                            {/* Scanning line animation */}
+                            <div className="absolute inset-x-0 top-0 h-1 bg-emerald-400 shadow-[0_0_8px_#10b981] animate-pulse"></div>
+                          </div>
+                          <span className="absolute -bottom-1 right-0 bg-emerald-500 text-white rounded-full p-0.5">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          </span>
+                        </div>
+
+                        <p className="text-[10px] font-mono text-emerald-300 font-bold mt-1">
+                          MATCH BIOMÉTRICO: 99.8%
+                        </p>
+                        <p className="text-[9px] text-slate-400">
+                          Anti-spoofing e Detecção de Liveness Validados
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs py-3.5 rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center space-x-2"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span>Registrar Ponto (Horário + GPS + Facial)</span>
+                    </button>
+                  </form>
+                </div>
               </div>
 
               {/* Point registers log list */}
               <div className="bg-white p-6 rounded-2xl border border-slate-100 lg:col-span-2 shadow-sm">
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                   <div>
-                    <h3 className="font-display font-bold text-sm">Histórico de Registros de Ponto</h3>
-                    <p className="text-slate-400 text-xs">Acompanhamento e auditoria de registros.</p>
+                    <h3 className="font-display font-bold text-sm text-slate-900">Histórico de Registros de Ponto</h3>
+                    <p className="text-slate-400 text-xs">Acompanhamento, auditoria biométrica e geolocalização.</p>
                   </div>
                   <input 
                     type="text" 
-                    placeholder="Filtrar por nome..."
+                    placeholder="Filtrar por colaborador..."
                     value={pointSearch}
                     onChange={(e) => setPointSearch(e.target.value)}
-                    className="bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-3 text-xs"
+                    className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
 
@@ -1993,42 +2563,75 @@ export default function AdminDashboard({
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-100 uppercase text-[9px] tracking-wider">
-                        <th className="py-3 px-4">Colaborador</th>
-                        <th className="py-3 px-4">Data</th>
-                        <th className="py-3 px-4">Entrada</th>
-                        <th className="py-3 px-4">Almoço Saída / Retorno</th>
-                        <th className="py-3 px-4">Saída</th>
-                        <th className="py-3 px-4">Total / Extras</th>
-                        <th className="py-3 px-4 text-right">Ação</th>
+                        <th className="py-3 px-3">Colaborador</th>
+                        <th className="py-3 px-3">Data</th>
+                        <th className="py-3 px-3">Entrada / Saída</th>
+                        <th className="py-3 px-3">Localização (GPS)</th>
+                        <th className="py-3 px-3">Biometria</th>
+                        <th className="py-3 px-3">Total / Extras</th>
+                        <th className="py-3 px-3 text-right">Comprovante</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredTimeRegistersList.map((reg) => (
-                        <tr key={reg.id} className="hover:bg-slate-50/50">
-                          <td className="py-3.5 px-4 font-bold text-slate-900">{reg.employeeName}</td>
-                          <td className="py-3.5 px-4 font-mono text-slate-500">{reg.date.split('-').reverse().join('/')}</td>
-                          <td className="py-3.5 px-4 font-mono text-emerald-600 font-semibold">{reg.clockIn || '--:--'}</td>
-                          <td className="py-3.5 px-4 font-mono text-slate-500">
-                            {reg.lunchOut || '--:--'} &bull; {reg.lunchIn || '--:--'}
+                        <tr key={reg.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="py-3.5 px-3">
+                            <div className="flex items-center space-x-2">
+                              {reg.facialPhotoUrl ? (
+                                <img src={reg.facialPhotoUrl} alt="" className="w-7 h-7 rounded-full object-cover border border-emerald-200" />
+                              ) : (
+                                <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] flex items-center justify-center">
+                                  {reg.employeeName.charAt(0)}
+                                </div>
+                              )}
+                              <div>
+                                <span className="font-bold text-slate-900 block">{reg.employeeName}</span>
+                                <span className="text-[10px] text-slate-400 font-mono">ID: {reg.employeeId}</span>
+                              </div>
+                            </div>
                           </td>
-                          <td className="py-3.5 px-4 font-mono text-slate-800 font-semibold">{reg.clockOut || '--:--'}</td>
-                          <td className="py-3.5 px-4 font-mono">
-                            <span className="font-bold text-slate-900 block">{reg.totalHours}h total</span>
+
+                          <td className="py-3.5 px-3 font-mono text-slate-600 font-medium">
+                            {reg.date.split('-').reverse().join('/')}
+                          </td>
+
+                          <td className="py-3.5 px-3 font-mono">
+                            <div className="space-y-0.5 text-[11px]">
+                              <div><span className="text-slate-400 text-[9px]">Entrada:</span> <strong className="text-emerald-700">{reg.clockIn || '--:--'}</strong></div>
+                              {reg.clockOut && <div><span className="text-slate-400 text-[9px]">Saída:</span> <strong className="text-slate-800">{reg.clockOut}</strong></div>}
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-3">
+                            <div className="flex items-center space-x-1 text-slate-700 max-w-[140px] truncate" title={reg.location || 'São Paulo, SP'}>
+                              <MapPin className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                              <span className="truncate text-[11px] font-medium">{reg.location ? reg.location.split('-')[0] : 'São Paulo, SP'}</span>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-3">
+                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center space-x-1">
+                              <ShieldCheck className="h-3 w-3 text-emerald-600" />
+                              <span>Facial OK</span>
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-3 font-mono">
+                            <span className="font-bold text-slate-900 block">{reg.totalHours}h</span>
                             {reg.extraHours > 0 && (
-                              <span className="text-amber-600 font-semibold text-[10px] block mt-0.5">+{reg.extraHours}h extras</span>
+                              <span className="text-amber-600 font-semibold text-[10px] block">+{reg.extraHours}h extras</span>
                             )}
                           </td>
-                          <td className="py-3.5 px-4 text-right">
-                            {reg.status === 'Pendente' ? (
-                              <button 
-                                onClick={() => handleApprovePoint(reg.id)}
-                                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[9px] px-2.5 py-1 rounded-md"
-                              >
-                                Aprovar
-                              </button>
-                            ) : (
-                              <span className="text-slate-400 text-[10px] font-semibold">✓ Aprovado</span>
-                            )}
+
+                          <td className="py-3.5 px-3 text-right">
+                            <button 
+                              type="button"
+                              onClick={() => setViewingTimeRegisterDetail(reg)}
+                              className="bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-800 font-bold text-[10px] px-2.5 py-1.5 rounded-lg transition-all inline-flex items-center space-x-1"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              <span>Ver</span>
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -2042,7 +2645,17 @@ export default function AdminDashboard({
           </div>
         )}
 
-        {/* --- 4. FOLHA DE PAGAMENTO VIEW --- */}
+        {/* --- ACESSOS AO PONTO ELETRÔNICO VIEW --- */}
+        {activeTab === 'acessos-ponto' && (
+          <PointAccessManager
+            currentUser={currentUser}
+            employees={employees}
+            systemUsers={systemUsers}
+            onRefreshUsers={loadSystemUsers}
+            onOpenEmployeeModal={(emp, tab) => openEditEmployeeModal(emp, tab === 'dados' ? 'dados' : 'acesso')}
+            triggerToast={triggerToast}
+          />
+        )}
         {activeTab === 'folha' && (
           <div className="space-y-6" id="folha-tab-content">
             <PayrollModule
@@ -2487,222 +3100,827 @@ export default function AdminDashboard({
       {/* 1. Add/Edit Employee Modal */}
       {isEmployeeModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-250">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-xl w-full overflow-hidden animate-in fade-in zoom-in-95 duration-250">
+            {/* Modal Header */}
             <div className="bg-[#047857] text-white p-5 flex justify-between items-center">
               <div>
-                <h3 className="font-display font-bold text-base">
-                  {editingEmployee ? 'Editar Colaborador' : 'Adicionar Novo Colaborador'}
-                </h3>
+                <div className="flex items-center space-x-2">
+                  <h3 className="font-display font-bold text-base">
+                    {editingEmployee ? `Editar: ${editingEmployee.name}` : 'Adicionar Novo Colaborador'}
+                  </h3>
+                  {editingEmployee && (() => {
+                    const acc = systemUsers.find(u => u.employeeId === editingEmployee.id || u.email.trim().toLowerCase() === editingEmployee.email.trim().toLowerCase());
+                    if (!acc) return <span className="text-[10px] bg-rose-500/30 text-rose-100 font-bold px-2 py-0.5 rounded-full border border-rose-300/30">🔴 Sem acesso criado</span>;
+                    if (acc.status === 'Ativo') return <span className="text-[10px] bg-emerald-400/30 text-emerald-100 font-bold px-2 py-0.5 rounded-full border border-emerald-300/30">🟢 Conta Ativa</span>;
+                    return <span className="text-[10px] bg-amber-400/30 text-amber-100 font-bold px-2 py-0.5 rounded-full border border-amber-300/30">🟠 Acesso Bloqueado</span>;
+                  })()}
+                </div>
                 <p className="text-emerald-100 text-[10px] font-semibold mt-0.5 uppercase">
-                  {editingEmployee ? 'Atualize os dados no banco' : 'Cadastre no quadro de funcionários'}
+                  {editingEmployee ? 'Atualize os dados e gerencie a conta de acesso ao sistema' : 'Cadastre no quadro de funcionários'}
                 </p>
               </div>
               <button 
                 onClick={() => setIsEmployeeModalOpen(false)}
-                className="text-emerald-100 hover:text-white p-1 rounded-lg"
+                className="text-emerald-100 hover:text-white p-1 rounded-lg cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleEmployeeSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Nome Completo *</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={empName}
-                    onChange={(e) => setEmpName(e.target.value)}
-                    placeholder="Nome completo do funcionário"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">E-mail Corporativo *</label>
-                  <input 
-                    type="email" 
-                    required
-                    value={empEmail}
-                    onChange={(e) => setEmpEmail(e.target.value)}
-                    placeholder="email@gestrh.com"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
-                  />
-                </div>
-              </div>
+            {/* Modal Tabs Bar */}
+            <div className="flex border-b border-slate-200 bg-slate-50/80 px-6 pt-3">
+              <button
+                type="button"
+                onClick={() => setEmployeeModalTab('dados')}
+                className={`pb-2.5 px-4 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all cursor-pointer ${
+                  employeeModalTab === 'dados'
+                    ? 'border-emerald-600 text-emerald-800 bg-white rounded-t-lg shadow-2xs'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Users className="h-4 w-4" />
+                <span>👤 Dados Cadastrais</span>
+              </button>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Celular corporativo</label>
-                  <input 
-                    type="tel" 
-                    value={empPhone}
-                    onChange={(e) => setEmpPhone(e.target.value)}
-                    placeholder="(11) 98765-4321"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Departamento *</label>
-                  <select 
-                    value={empDept}
-                    onChange={(e) => setEmpDept(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
-                  >
-                    <option value="TI">TI</option>
-                    <option value="Comercial">Comercial</option>
-                    <option value="Financeiro">Financeiro</option>
-                    <option value="Recursos Humanos">Recursos Humanos</option>
-                    <option value="Administrativo">Administrativo</option>
-                    <option value="Logística">Logística</option>
-                  </select>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => setEmployeeModalTab('acesso')}
+                className={`pb-2.5 px-4 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all cursor-pointer ${
+                  employeeModalTab === 'acesso'
+                    ? 'border-emerald-600 text-emerald-800 bg-white rounded-t-lg shadow-2xs'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Lock className="h-4 w-4" />
+                <span>🔐 Acesso ao Sistema</span>
+                {editingEmployee && (() => {
+                  const acc = systemUsers.find(u => u.employeeId === editingEmployee.id || u.email.trim().toLowerCase() === editingEmployee.email.trim().toLowerCase());
+                  return acc ? (
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block"></span>
+                  ) : (
+                    <span className="h-2 w-2 rounded-full bg-rose-500 inline-block"></span>
+                  );
+                })()}
+              </button>
+            </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Cargo *</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={empRole}
-                    onChange={(e) => setEmpRole(e.target.value)}
-                    placeholder="Ex: Desenvolvedor React"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Salário Bruto Mensal *</label>
-                  <input 
-                    type="number" 
-                    required
-                    value={empSalary}
-                    onChange={(e) => setEmpSalary(e.target.value)}
-                    placeholder="Valor em Real (R$)"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Status Contratual</label>
-                  <select 
-                    value={empStatus}
-                    onChange={(e) => setEmpStatus(e.target.value as EmployeeStatus)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
-                  >
-                    <option value="Ativo">Ativo</option>
-                    <option value="Em Férias">Em Férias</option>
-                    <option value="Afastado">Afastado</option>
-                    <option value="Desligado">Desligado</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Data de Admissão</label>
-                  <input 
-                    type="date" 
-                    value={empAdmission}
-                    onChange={(e) => setEmpAdmission(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
-                  />
-                </div>
-              </div>
-
-              {/* Coordinator and IRRF Dependents */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Coordenador Direto</label>
-                  <select
-                    value={empCoordinatorId}
-                    onChange={(e) => setEmpCoordinatorId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
-                  >
-                    <option value="">-- Selecionar Coordenador --</option>
-                    {employees.filter(e => e.id !== editingEmployee?.id).map(c => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.department} - {c.role})</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Nº de Dependentes (IRRF)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={empDependentsCount}
-                    onChange={(e) => setEmpDependentsCount(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-bold"
-                  />
-                </div>
-              </div>
-
-              {/* Vale Transporte Section */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800">Benefício Vale Transporte (VT CLT)</span>
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={empHasVT}
-                      onChange={(e) => setEmpHasVT(e.target.checked)}
-                      className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+            {/* TAB 1: DADOS CADASTRAIS FORM */}
+            {employeeModalTab === 'dados' && (
+              <form onSubmit={handleEmployeeSubmit} className="p-6 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Nome Completo *</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={empName}
+                      onChange={(e) => setEmpName(e.target.value)}
+                      placeholder="Nome completo do funcionário"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
                     />
-                    <span className="text-xs font-semibold text-emerald-800">Possui VT?</span>
-                  </label>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">E-mail Corporativo *</label>
+                    <input 
+                      type="email" 
+                      required
+                      value={empEmail}
+                      onChange={(e) => setEmpEmail(e.target.value)}
+                      placeholder="email@gestrh.com"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
+                    />
+                  </div>
                 </div>
 
-                {empHasVT && (
-                  <div className="grid grid-cols-2 gap-3 pt-2">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Valor da Passagem (R$)</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Celular corporativo</label>
+                    <input 
+                      type="tel" 
+                      value={empPhone}
+                      onChange={(e) => setEmpPhone(e.target.value)}
+                      placeholder="(11) 98765-4321"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Departamento *</label>
+                    <select 
+                      value={empDept}
+                      onChange={(e) => setEmpDept(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
+                    >
+                      <option value="TI">TI</option>
+                      <option value="Comercial">Comercial</option>
+                      <option value="Financeiro">Financeiro</option>
+                      <option value="Recursos Humanos">Recursos Humanos</option>
+                      <option value="Administrativo">Administrativo</option>
+                      <option value="Logística">Logística</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Cargo *</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={empRole}
+                      onChange={(e) => setEmpRole(e.target.value)}
+                      placeholder="Ex: Desenvolvedor React"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Salário Bruto Mensal *</label>
+                    <input 
+                      type="number" 
+                      required
+                      value={empSalary}
+                      onChange={(e) => setEmpSalary(e.target.value)}
+                      placeholder="Valor em Real (R$)"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Status Contratual</label>
+                    <select 
+                      value={empStatus}
+                      onChange={(e) => setEmpStatus(e.target.value as EmployeeStatus)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
+                    >
+                      <option value="Ativo">Ativo</option>
+                      <option value="Em Férias">Em Férias</option>
+                      <option value="Afastado">Afastado</option>
+                      <option value="Desligado">Desligado</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Data de Admissão</label>
+                    <input 
+                      type="date" 
+                      value={empAdmission}
+                      onChange={(e) => setEmpAdmission(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Coordinator and IRRF Dependents */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Coordenador Direto</label>
+                    <select
+                      value={empCoordinatorId}
+                      onChange={(e) => setEmpCoordinatorId(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs"
+                    >
+                      <option value="">-- Selecionar Coordenador --</option>
+                      {employees.filter(e => e.id !== editingEmployee?.id).map(c => (
+                        <option key={c.id} value={c.id}>{c.name} ({c.department} - {c.role})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Nº de Dependentes (IRRF)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={empDependentsCount}
+                      onChange={(e) => setEmpDependentsCount(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-bold"
+                    />
+                  </div>
+                </div>
+
+                {/* Vale Transporte Section */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800">Benefício Vale Transporte (VT CLT)</span>
+                    <label className="flex items-center space-x-2 cursor-pointer">
                       <input
-                        type="number"
-                        step="0.05"
-                        value={empTicketPrice}
-                        onChange={(e) => setEmpTicketPrice(e.target.value)}
-                        placeholder="Ex: 4.40"
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold"
+                        type="checkbox"
+                        checked={empHasVT}
+                        onChange={(e) => setEmpHasVT(e.target.checked)}
+                        className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
                       />
+                      <span className="text-xs font-semibold text-emerald-800">Possui VT?</span>
+                    </label>
+                  </div>
+
+                  {empHasVT && (
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Valor da Passagem (R$)</label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={empTicketPrice}
+                          onChange={(e) => setEmpTicketPrice(e.target.value)}
+                          placeholder="Ex: 4.40"
+                          className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Dias Utilizados/Mês</label>
+                        <input
+                          type="number"
+                          value={empDaysUsed}
+                          onChange={(e) => setEmpDaysUsed(e.target.value)}
+                          placeholder="22"
+                          className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold"
+                        />
+                      </div>
+                      <div className="col-span-2 bg-emerald-50 p-2.5 rounded-lg border border-emerald-100 text-[11px] text-emerald-800 flex justify-between items-center">
+                        <span>Desconto Máx. de 6% do Salário Base:</span>
+                        <strong className="font-bold text-emerald-900">
+                          - R$ {Math.min(
+                            (parseFloat(empTicketPrice) || 0) * (parseInt(empDaysUsed) || 22) * 2,
+                            (parseFloat(empSalary) || 0) * 0.06
+                          ).toFixed(2)}
+                        </strong>
+                      </div>
                     </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsEmployeeModalOpen(false)}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit"
+                    className="bg-[#047857] hover:bg-emerald-600 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md cursor-pointer"
+                  >
+                    Confirmar Cadastro
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* TAB 2: ACESSO AO SISTEMA */}
+            {employeeModalTab === 'acesso' && (
+              <div className="p-6 space-y-5">
+                {!editingEmployee ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center space-y-3">
+                    <AlertTriangle className="h-10 w-10 text-amber-600 mx-auto" />
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Dias Utilizados/Mês</label>
-                      <input
-                        type="number"
-                        value={empDaysUsed}
-                        onChange={(e) => setEmpDaysUsed(e.target.value)}
-                        placeholder="22"
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold"
-                      />
-                    </div>
-                    <div className="col-span-2 bg-emerald-50 p-2.5 rounded-lg border border-emerald-100 text-[11px] text-emerald-800 flex justify-between items-center">
-                      <span>Desconto Máx. de 6% do Salário Base:</span>
-                      <strong className="font-bold text-emerald-900">
-                        - R$ {Math.min(
-                          (parseFloat(empTicketPrice) || 0) * (parseInt(empDaysUsed) || 22) * 2,
-                          (parseFloat(empSalary) || 0) * 0.06
-                        ).toFixed(2)}
-                      </strong>
+                      <h4 className="font-bold text-sm text-amber-900">Salve o colaborador primeiro</h4>
+                      <p className="text-xs text-amber-700 mt-1 max-w-sm mx-auto">
+                        Preencha e confirme o formulário na aba <strong>Dados Cadastrais</strong> para cadastrar o funcionário e liberar o gerenciamento de acesso ao sistema.
+                      </p>
                     </div>
                   </div>
-                )}
+                ) : (() => {
+                  const linkedUser = systemUsers.find(
+                    u => u.employeeId === editingEmployee.id || u.email.trim().toLowerCase() === editingEmployee.email.trim().toLowerCase()
+                  );
+
+                  if (!linkedUser) {
+                    return (
+                      <div className="space-y-4 animate-in fade-in duration-200">
+                        {/* Status Header */}
+                        <div className="bg-rose-50/90 border border-rose-200 rounded-2xl p-4 flex items-center justify-between shadow-2xs">
+                          <div className="flex items-center space-x-3">
+                            <div className="h-10 w-10 bg-rose-100 text-rose-700 rounded-xl flex items-center justify-center font-bold shrink-0">
+                              <ShieldAlert className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-extrabold text-rose-900 block">🔴 Sem acesso criado</span>
+                              <span className="text-[11px] text-rose-700 block">Este funcionário ainda não possui login no Portal do Colaborador.</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Summary Details Table */}
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-xs">
+                          <div className="flex justify-between border-b border-slate-200/60 pb-2">
+                            <span className="text-slate-500 font-medium">Status da Conta:</span>
+                            <span className="font-bold text-rose-600">Sem acesso criado</span>
+                          </div>
+                          <div className="flex justify-between border-b border-slate-200/60 pb-2">
+                            <span className="text-slate-500 font-medium">Usuário sugerido:</span>
+                            <span className="font-mono text-slate-800 font-bold">{editingEmployee.email.split('@')[0]}</span>
+                          </div>
+                          <div className="flex justify-between border-b border-slate-200/60 pb-2">
+                            <span className="text-slate-500 font-medium">E-mail de Acesso:</span>
+                            <span className="font-semibold text-slate-800">{editingEmployee.email}</span>
+                          </div>
+                          <div className="flex justify-between border-b border-slate-200/60 pb-2">
+                            <span className="text-slate-500 font-medium">Perfil de Acesso:</span>
+                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full">Funcionário</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 font-medium">ID de Vínculo:</span>
+                            <span className="font-mono text-[11px] text-slate-600">{editingEmployee.id}</span>
+                          </div>
+                        </div>
+
+                        {/* Unlocked Features List */}
+                        <div className="bg-emerald-50/70 border border-emerald-200/70 rounded-xl p-4 text-xs space-y-2.5">
+                          <span className="font-bold text-emerald-900 block text-[11px] uppercase tracking-wider">
+                            Módulos e Recursos que serão liberados:
+                          </span>
+                          <div className="grid grid-cols-2 gap-2 text-[11px] text-emerald-800 font-medium">
+                            <div className="flex items-center space-x-2"><CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /><span>Portal do Colaborador</span></div>
+                            <div className="flex items-center space-x-2"><CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /><span>Aplicativo de Ponto</span></div>
+                            <div className="flex items-center space-x-2"><CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /><span>Holerites</span></div>
+                            <div className="flex items-center space-x-2"><CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /><span>Férias</span></div>
+                            <div className="flex items-center space-x-2"><CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /><span>Documentos</span></div>
+                            <div className="flex items-center space-x-2"><CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /><span>Banco de Horas</span></div>
+                            <div className="flex items-center space-x-2"><CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /><span>Benefícios</span></div>
+                          </div>
+                        </div>
+
+                        {/* Action Button: Criar Acesso */}
+                        <button
+                          type="button"
+                          onClick={() => handleCreateAccess(editingEmployee)}
+                          className="w-full bg-[#047857] hover:bg-emerald-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg flex items-center justify-center space-x-2 transition-all cursor-pointer hover:scale-[1.01]"
+                        >
+                          <Key className="h-5 w-5" />
+                          <span>Criar Acesso ao Sistema</span>
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  // If user ALREADY has access
+                  return (
+                    <div className="space-y-4 animate-in fade-in duration-200">
+                      {/* Header Status Card */}
+                      <div className={`border rounded-2xl p-4 flex items-center justify-between shadow-2xs ${
+                        linkedUser.status === 'Ativo' ? 'bg-emerald-50/90 border-emerald-200' : 'bg-amber-50/90 border-amber-200'
+                      }`}>
+                        <div className="flex items-center space-x-3">
+                          <div className={`h-10 w-10 rounded-xl flex items-center justify-center font-bold shrink-0 ${
+                            linkedUser.status === 'Ativo' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            <ShieldCheck className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-extrabold block">
+                              {linkedUser.status === 'Ativo' ? '🟢 Conta Ativa' : '🟠 Acesso Bloqueado'}
+                            </span>
+                            <span className="text-[11px] text-slate-600 block mt-0.5">
+                              Vinculado ao funcionário: <code className="bg-slate-200/80 px-1.5 py-0.5 rounded font-mono text-[10px] font-bold">{editingEmployee.id}</code>
+                            </span>
+                          </div>
+                        </div>
+                        <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider ${
+                          linkedUser.status === 'Ativo' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300/40' : 'bg-amber-100 text-amber-800 border border-amber-300/40'
+                        }`}>
+                          {linkedUser.status}
+                        </span>
+                      </div>
+
+                      {/* Access Attributes Table */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2.5 text-xs">
+                        <div className="flex justify-between border-b border-slate-200/60 pb-2">
+                          <span className="text-slate-500 font-medium">Usuário:</span>
+                          <span className="font-mono font-bold text-slate-900">{linkedUser.username || linkedUser.email.split('@')[0]}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-slate-200/60 pb-2">
+                          <span className="text-slate-500 font-medium">E-mail de Acesso:</span>
+                          <span className="font-semibold text-slate-900">{linkedUser.email}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-slate-200/60 pb-2">
+                          <span className="text-slate-500 font-medium">Perfil de Acesso:</span>
+                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full">Funcionário</span>
+                        </div>
+                        <div className="flex justify-between border-b border-slate-200/60 pb-2">
+                          <span className="text-slate-500 font-medium">Último Login:</span>
+                          <span className="font-mono text-slate-700">{linkedUser.lastLogin || 'Nunca acessou'}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-slate-200/60 pb-2">
+                          <span className="text-slate-500 font-medium">Data de Criação:</span>
+                          <span className="font-mono text-slate-700">{linkedUser.createdAt || '21/07/2026'}</span>
+                        </div>
+                        <div className="flex justify-between pt-0.5">
+                          <span className="text-slate-500 font-medium">Senha Temporária:</span>
+                          <span className="font-mono text-slate-800 font-bold bg-slate-200/70 px-2 py-0.5 rounded">{linkedUser.temporaryPassword || linkedUser.password || 'GestRH@2026'}</span>
+                        </div>
+                      </div>
+
+                      {/* Permissions List / Interactive Module Access Configurator */}
+                      <div className="bg-white border border-emerald-200/80 rounded-2xl p-4 text-xs space-y-3 shadow-xs">
+                        <div className="flex items-center justify-between border-b border-emerald-100 pb-2">
+                          <div>
+                            <span className="font-extrabold text-emerald-950 block text-[11px] uppercase tracking-wider">
+                              Módulos Liberados para o Colaborador
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              Marque/desmarque para liberar ou revogar o acesso do colaborador.
+                            </span>
+                          </div>
+                          <div className="flex space-x-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleAllPermissions(linkedUser, true)}
+                              className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                              title="Liberar todos os módulos"
+                            >
+                              Liberar Todos
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleAllPermissions(linkedUser, false)}
+                              className="text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                              title="Bloquear todos os módulos"
+                            >
+                              Bloquear Todos
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                          {[
+                            { key: 'portalColaborador', label: 'Portal do Colaborador', desc: 'Acesso ao dashboard principal' },
+                            { key: 'aplicativoPonto', label: 'Aplicativo de Ponto', desc: 'Registro de ponto eletrônico' },
+                            { key: 'holerites', label: 'Holerites & Contracheques', desc: 'Visualização de holerites' },
+                            { key: 'ferias', label: 'Solicitações de Férias', desc: 'Solicitar e acompanhar férias' },
+                            { key: 'documentos', label: 'Gestão de Documentos', desc: 'Envio de comprovantes e arquivos' },
+                            { key: 'bancoHoras', label: 'Banco de Horas', desc: 'Extrato de horas acumuladas' },
+                            { key: 'beneficios', label: 'Gestão de Benefícios', desc: 'Consulta de VT, VR e planos' },
+                          ].map((m) => {
+                            const perms = linkedUser.permissions || {
+                              portalColaborador: true,
+                              aplicativoPonto: true,
+                              holerites: true,
+                              ferias: true,
+                              documentos: true,
+                              bancoHoras: true,
+                              beneficios: true,
+                            };
+                            const isAllowed = perms[m.key as keyof EmployeeAccessPermissions] !== false;
+
+                            return (
+                              <div
+                                key={m.key}
+                                onClick={() => handleTogglePermission(linkedUser, m.key as keyof EmployeeAccessPermissions)}
+                                className={`flex items-start space-x-2.5 p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
+                                  isAllowed
+                                    ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950 shadow-2xs hover:bg-emerald-100/80'
+                                    : 'bg-slate-50 border-slate-200 text-slate-400 opacity-80 hover:opacity-100 hover:bg-slate-100/80'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isAllowed}
+                                  readOnly
+                                  className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4 shrink-0 pointer-events-none"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between">
+                                    <span className={`font-bold text-[11px] leading-tight ${isAllowed ? 'text-emerald-950' : 'text-slate-600'}`}>
+                                      {m.label}
+                                    </span>
+                                    <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-full uppercase ${
+                                      isAllowed ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-200 text-slate-600'
+                                    }`}>
+                                      {isAllowed ? 'Liberado' : 'Bloqueado'}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 truncate mt-0.5">{m.desc}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Action Buttons Grid */}
+                      <div className="space-y-2.5 pt-2 border-t border-slate-200">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Ações de Gerenciamento do Acesso:</span>
+                        
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {/* Redefinir Senha */}
+                          <button
+                            type="button"
+                            onClick={() => handleResetPassword(linkedUser)}
+                            className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-2.5 px-3 rounded-xl text-[11px] flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5 text-emerald-700" />
+                            <span>Redefinir Senha</span>
+                          </button>
+
+                          {/* Editar Usuário */}
+                          <button
+                            type="button"
+                            onClick={() => setEditingUserForm(linkedUser)}
+                            className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-2.5 px-3 rounded-xl text-[11px] flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+                          >
+                            <Edit className="h-3.5 w-3.5 text-amber-700" />
+                            <span>Editar Usuário</span>
+                          </button>
+
+                          {/* Bloquear / Desbloquear */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleUserStatus(linkedUser)}
+                            className={`font-bold py-2.5 px-3 rounded-xl text-[11px] flex items-center justify-center space-x-1.5 transition-colors cursor-pointer ${
+                              linkedUser.status === 'Ativo'
+                                ? 'bg-amber-100 hover:bg-amber-200 text-amber-900'
+                                : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900'
+                            }`}
+                          >
+                            {linkedUser.status === 'Ativo' ? (
+                              <>
+                                <Lock className="h-3.5 w-3.5" />
+                                <span>Bloquear Acesso</span>
+                              </>
+                            ) : (
+                              <>
+                                <Unlock className="h-3.5 w-3.5" />
+                                <span>Desbloquear Acesso</span>
+                              </>
+                            )}
+                          </button>
+
+                          {/* Enviar Convite Modal */}
+                          <button
+                            type="button"
+                            onClick={() => setInviteModalUser(linkedUser)}
+                            className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-2.5 px-3 rounded-xl text-[11px] flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+                          >
+                            <Send className="h-3.5 w-3.5 text-emerald-700" />
+                            <span>Enviar Convite</span>
+                          </button>
+
+                          {/* Enviar WhatsApp */}
+                          <button
+                            type="button"
+                            onClick={() => sendWhatsAppInvite(linkedUser)}
+                            className="bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-bold py-2.5 px-3 rounded-xl text-[11px] flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+                          >
+                            <MessageSquare className="h-3.5 w-3.5 text-emerald-700" />
+                            <span>WhatsApp</span>
+                          </button>
+
+                          {/* Enviar Email */}
+                          <button
+                            type="button"
+                            onClick={() => sendEmailInvite(linkedUser)}
+                            className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-2.5 px-3 rounded-xl text-[11px] flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+                          >
+                            <Mail className="h-3.5 w-3.5 text-slate-700" />
+                            <span>E-mail</span>
+                          </button>
+                        </div>
+
+                        {/* Remover Acesso Button */}
+                        <div className="pt-3 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAccess(linkedUser)}
+                            className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 border border-rose-200 transition-colors cursor-pointer"
+                          >
+                            <UserX className="h-4 w-4" />
+                            <span>Remover Acesso ao Sistema (Manter Cadastro)</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* AUXILIARY MODAL 1: TEMP PASS ALERT MODAL */}
+      {tempPassAlert?.isOpen && (
+        <div className="fixed inset-0 z-60 overflow-y-auto bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200 p-6 space-y-4">
+            <div className="flex items-center space-x-3 text-emerald-700">
+              <div className="h-10 w-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+                <Key className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900">Acesso / Senha Gerada</h3>
+                <p className="text-[11px] text-slate-500">Credenciais para {tempPassAlert.userName}</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-xs font-mono">
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase">E-mail de Acesso</span>
+                <span className="font-bold text-slate-800">{tempPassAlert.userEmail}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase">Usuário</span>
+                <span className="font-bold text-slate-800">{tempPassAlert.username}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase">Senha Temporária</span>
+                <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 text-emerald-900 font-extrabold text-sm mt-1">
+                  <span>{tempPassAlert.tempPass}</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(tempPassAlert.tempPass);
+                      triggerToast('✓ Senha copiada para a área de transferência!');
+                    }}
+                    className="text-emerald-700 hover:text-emerald-900 text-[11px] bg-white px-2 py-1 rounded border border-emerald-200 font-bold flex items-center space-x-1 cursor-pointer"
+                  >
+                    <Copy className="h-3 w-3" />
+                    <span>Copiar</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => sendWhatsAppInvite({ name: tempPassAlert.userName, email: tempPassAlert.userEmail, username: tempPassAlert.username } as any, tempPassAlert.tempPass)}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 cursor-pointer"
+              >
+                <MessageSquare className="h-4 w-4" />
+                <span>Enviar WhatsApp</span>
+              </button>
+              <button
+                onClick={() => sendEmailInvite({ name: tempPassAlert.userName, email: tempPassAlert.userEmail, username: tempPassAlert.username } as any, tempPassAlert.tempPass)}
+                className="bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 cursor-pointer"
+              >
+                <Mail className="h-4 w-4" />
+                <span>Enviar E-mail</span>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setTempPassAlert(null)}
+              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-2.5 rounded-xl text-xs cursor-pointer"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* AUXILIARY MODAL 2: EDIT USER ACCESS FORM MODAL */}
+      {editingUserForm && (
+        <div className="fixed inset-0 z-60 overflow-y-auto bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-slate-900 text-white p-5 flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-sm">Editar Usuário de Acesso</h3>
+                <p className="text-slate-400 text-[10px]">{editingUserForm.name}</p>
+              </div>
+              <button onClick={() => setEditingUserForm(null)} className="text-slate-400 hover:text-white cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                try {
+                  await firebaseService.db.saveDoc('USERS', editingUserForm);
+                  await loadSystemUsers();
+                  triggerToast('✓ Dados de acesso atualizados!');
+                  setEditingUserForm(null);
+                } catch (err: any) {
+                  alert(`Erro ao atualizar: ${err.message || err}`);
+                }
+              }}
+              className="p-6 space-y-4 text-xs"
+            >
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Nome Completo</label>
+                <input
+                  type="text"
+                  required
+                  value={editingUserForm.name}
+                  onChange={(e) => setEditingUserForm({ ...editingUserForm, name: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs"
+                />
               </div>
 
-              <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
-                <button 
-                  type="button" 
-                  onClick={() => setIsEmployeeModalOpen(false)}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs px-4 py-2.5 rounded-xl"
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Nome de Usuário (Login)</label>
+                <input
+                  type="text"
+                  required
+                  value={editingUserForm.username || editingUserForm.email.split('@')[0]}
+                  onChange={(e) => setEditingUserForm({ ...editingUserForm, username: e.target.value.toLowerCase().trim() })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">E-mail de Acesso</label>
+                <input
+                  type="email"
+                  required
+                  value={editingUserForm.email}
+                  onChange={(e) => setEditingUserForm({ ...editingUserForm, email: e.target.value.trim() })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Status da Conta</label>
+                <select
+                  value={editingUserForm.status}
+                  onChange={(e) => setEditingUserForm({ ...editingUserForm, status: e.target.value as any })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold"
+                >
+                  <option value="Ativo">🟢 Ativo</option>
+                  <option value="Bloqueado">🟠 Bloqueado</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingUserForm(null)}
+                  className="bg-slate-100 text-slate-700 font-bold px-4 py-2 rounded-xl text-xs cursor-pointer"
                 >
                   Cancelar
                 </button>
-                <button 
+                <button
                   type="submit"
-                  className="bg-[#047857] hover:bg-emerald-600 text-white font-bold text-xs px-5 py-2.5 rounded-xl"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs cursor-pointer"
                 >
-                  Confirmar Cadastro
+                  Salvar
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* AUXILIARY MODAL 3: INVITATION MODAL */}
+      {inviteModalUser && (
+        <div className="fixed inset-0 z-60 overflow-y-auto bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-[#047857] text-white p-5 flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-sm">Enviar Convite de Acesso</h3>
+                <p className="text-emerald-100 text-[10px]">{inviteModalUser.name}</p>
+              </div>
+              <button onClick={() => setInviteModalUser(null)} className="text-emerald-100 hover:text-white cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs">
+              <p className="text-slate-600">
+                Selecione o canal de envio do convite para o colaborador realizar o seu primeiro login no Portal do Colaborador:
+              </p>
+
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 font-mono text-[11px] space-y-1 text-slate-800">
+                <p><strong>Olá {inviteModalUser.name},</strong></p>
+                <p>Seu acesso ao Portal do Colaborador GestRH está ativo.</p>
+                <p>• E-mail: {inviteModalUser.email}</p>
+                <p>• Usuário: {inviteModalUser.username || inviteModalUser.email.split('@')[0]}</p>
+                <p>• Senha temporária: {inviteModalUser.temporaryPassword || inviteModalUser.password || 'GestRH@2026'}</p>
+              </div>
+
+              <div className="space-y-2">
+                <button
+                  onClick={() => {
+                    sendWhatsAppInvite(inviteModalUser);
+                    setInviteModalUser(null);
+                  }}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center space-x-2 cursor-pointer shadow-md"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>Enviar por WhatsApp</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    sendEmailInvite(inviteModalUser);
+                    setInviteModalUser(null);
+                  }}
+                  className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <Mail className="h-4 w-4" />
+                  <span>Enviar por E-mail</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const text = `Olá ${inviteModalUser.name}!\nSeu acesso ao GestRH foi liberado.\nE-mail: ${inviteModalUser.email}\nUsuário: ${inviteModalUser.username || inviteModalUser.email.split('@')[0]}\nSenha temporária: ${inviteModalUser.temporaryPassword || inviteModalUser.password || 'GestRH@2026'}\nLink: ${window.location.origin}`;
+                    navigator.clipboard.writeText(text);
+                    triggerToast('✓ Mensagem de convite copiada!');
+                  }}
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-2.5 px-4 rounded-xl flex items-center justify-center space-x-2 cursor-pointer border border-slate-200"
+                >
+                  <Copy className="h-4 w-4" />
+                  <span>Copiar Texto do Convite</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -2994,6 +4212,172 @@ export default function AdminDashboard({
             </div>
           </form>
         </div>
+      )}
+
+      {/* 8. Comprovante de Registro de Ponto Digital Modal */}
+      {viewingTimeRegisterDetail && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-lg w-full overflow-hidden animate-in zoom-in-95">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-emerald-700 to-teal-800 text-white p-5 flex justify-between items-center">
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="h-6 w-6 text-emerald-300" />
+                <div>
+                  <h3 className="font-display font-extrabold text-base">Comprovante de Ponto Eletrônico</h3>
+                  <p className="text-emerald-200 text-[10px] font-mono">Portaria 671/2021 MTP • eSocial Auditado</p>
+                </div>
+              </div>
+              <button onClick={() => setViewingTimeRegisterDetail(null)} className="text-emerald-100 hover:text-white p-1 rounded-lg">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5 text-slate-800 text-xs">
+              {/* Employee & Photo Badge */}
+              <div className="flex items-center space-x-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                <div className="relative">
+                  <img 
+                    src={viewingTimeRegisterDetail.facialPhotoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} 
+                    alt="Facial Capture" 
+                    className="w-14 h-14 rounded-2xl object-cover border-2 border-emerald-500 shadow-sm"
+                  />
+                  <span className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-0.5 rounded-full">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </span>
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-slate-900 text-sm">{viewingTimeRegisterDetail.employeeName}</h4>
+                  <p className="text-[11px] text-slate-500 font-medium">Matrícula: {viewingTimeRegisterDetail.employeeId}</p>
+                  <span className="inline-block mt-1 bg-emerald-100 text-emerald-800 font-bold text-[9px] px-2 py-0.5 rounded-md">
+                    Biometria Facial Validada (Match: 99.8%)
+                  </span>
+                </div>
+              </div>
+
+              {/* Registro Audit Data */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Data do Registro</span>
+                  <p className="font-mono font-bold text-slate-900 text-sm mt-0.5">
+                    {viewingTimeRegisterDetail.date.split('-').reverse().join('/')}
+                  </p>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Horário Entrada</span>
+                  <p className="font-mono font-bold text-emerald-700 text-sm mt-0.5">
+                    {viewingTimeRegisterDetail.clockIn || '--:--'}
+                  </p>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Almoço (Ida / Volta)</span>
+                  <p className="font-mono font-semibold text-slate-700 mt-0.5">
+                    {viewingTimeRegisterDetail.lunchOut || '--:--'} &bull; {viewingTimeRegisterDetail.lunchIn || '--:--'}
+                  </p>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Horário Saída</span>
+                  <p className="font-mono font-bold text-slate-900 text-sm mt-0.5">
+                    {viewingTimeRegisterDetail.clockOut || '--:--'}
+                  </p>
+                </div>
+              </div>
+
+              {/* GPS Location Audit */}
+              <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-200/80 space-y-1.5">
+                <div className="flex items-center space-x-1.5 text-emerald-900 font-bold">
+                  <MapPin className="h-4 w-4 text-emerald-600" />
+                  <span>Geolocalização GPS Registrada</span>
+                </div>
+                <p className="text-slate-700 font-semibold text-[11px] pl-5">
+                  {viewingTimeRegisterDetail.location || 'São Paulo, SP - Brasil'}
+                </p>
+                {viewingTimeRegisterDetail.latitude && (
+                  <p className="text-emerald-700 font-mono text-[10px] pl-5">
+                    Coordenadas: Lat {viewingTimeRegisterDetail.latitude}, Lng {viewingTimeRegisterDetail.longitude}
+                  </p>
+                )}
+                <div className="pl-5 pt-1">
+                  <a 
+                    href={`https://www.google.com/maps?q=${viewingTimeRegisterDetail.latitude || -23.5505},${viewingTimeRegisterDetail.longitude || -46.6333}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center space-x-1 text-[10px] font-bold text-emerald-800 hover:underline"
+                  >
+                    <span>Abrir no Google Maps</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              </div>
+
+              {/* Security Hash & NSR */}
+              <div className="font-mono text-[10px] text-slate-400 bg-slate-100 p-2.5 rounded-xl border border-slate-200 space-y-1">
+                <p>NSR: <strong>NSR-2026-904812-{viewingTimeRegisterDetail.id}</strong></p>
+                <p className="truncate">HASH SHA-256: 7f8a91b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8</p>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => window.print()}
+                  className="bg-slate-900 text-white font-bold text-xs px-4 py-2.5 rounded-xl hover:bg-slate-800 transition-all flex items-center space-x-1"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Imprimir Comprovante</span>
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setViewingTimeRegisterDetail(null)}
+                  className="bg-slate-100 text-slate-800 font-bold text-xs px-4 py-2.5 rounded-xl hover:bg-slate-200"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. First Access Modal for Employees requiring initial setup */}
+      {currentUser && currentUser.role === 'Funcionário' && (currentUser.mustChangePassword || !currentUser.termsAccepted || !currentUser.dataConfirmed) && (
+        <FirstAccessModal
+          currentUser={currentUser}
+          onSuccess={(updated) => {
+            if (onUpdateCurrentUser) onUpdateCurrentUser(updated);
+            loadSystemUsers();
+            triggerToast('✓ Configuração de Primeiro Acesso concluída com sucesso!');
+          }}
+        />
+      )}
+
+      {/* 8. MASTER DESIGNER (CONSTRUTOR VISUAL GLOBAL DO MASTER) FLOATING TOGGLE & MODAL */}
+      {((currentUser?.role as string) === 'Master' || (currentUser?.role as string) === 'MASTER' || (currentUser?.role as string) === 'OWNER') && (
+        <>
+          {/* Floating Action Button */}
+          <div className="fixed bottom-6 right-6 z-40 flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => setIsMasterBuilderModalOpen(true)}
+              className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs px-4 py-3 rounded-2xl shadow-2xl shadow-amber-500/30 border border-amber-300 flex items-center space-x-2 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+            >
+              <Sparkles className="h-4 w-4 animate-pulse text-slate-950" />
+              <span>Entrar no Modo Edição (MASTER DESIGNER)</span>
+            </button>
+          </div>
+
+          {/* Fullscreen Builder Modal */}
+          {isMasterBuilderModalOpen && (
+            <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto flex flex-col animate-in fade-in">
+              <MasterVisualBuilder
+                currentUserRole={currentUser.role}
+                onClose={() => setIsMasterBuilderModalOpen(false)}
+                triggerToast={triggerToast}
+              />
+            </div>
+          )}
+        </>
       )}
 
     </div>

@@ -47,15 +47,40 @@ export interface SaaSCompany {
 
 export type UserRole = 'Master' | 'Empresa Administradora' | 'RH' | 'Funcionário' | 'Coordenador' | 'Consultor RH';
 
+export interface EmployeeAccessPermissions {
+  portalColaborador: boolean;
+  aplicativoPonto: boolean;
+  holerites: boolean;
+  ferias: boolean;
+  documentos: boolean;
+  bancoHoras: boolean;
+  beneficios: boolean;
+}
+
 export interface UserAccount {
   id: string;
   email: string;
   name: string;
+  username?: string;
   role: UserRole;
   companyId?: string; // empty for Master
   employeeId?: string; // links to Employee for 'Funcionário'
-  status: 'Ativo' | 'Bloqueado';
+  status: 'Ativo' | 'Bloqueado' | 'Pendente';
   password?: string;
+  temporaryPassword?: string;
+  lastLogin?: string;
+  createdAt?: string;
+  permissions?: EmployeeAccessPermissions;
+  mustChangePassword?: boolean;
+  termsAccepted?: boolean;
+  termsAcceptedAt?: string;
+  dataConfirmed?: boolean;
+  permitirAplicativoPonto?: boolean;
+  cpf?: string;
+  logs?: any[];
+  lastLoginStatus?: string;
+  createdBy?: string;
+  blockedDate?: string;
 }
 
 // Configurações do Site Principal (Master Admin)

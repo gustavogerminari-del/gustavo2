@@ -3,6 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { firestoreDb } from '../firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+
 export interface MenuItemCustomization {
   id: string;
   originalLabel: string;
@@ -158,7 +161,7 @@ export function createDefaultCompanyLayout(companyId: string, companyName: strin
 }
 
 export const layoutService = {
-  // Get layout for specific company
+  // Get layout for specific company synchronously (from local cache)
   getCompanyLayout(companyId: string, companyName: string = 'Empresa'): CompanyLayoutConfig {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
@@ -174,7 +177,32 @@ export const layoutService = {
     return createDefaultCompanyLayout(companyId, companyName);
   },
 
-  // Save layout & record history version
+  // Async load from Firestore with local storage fallback
+  async loadCompanyLayoutAsync(companyId: string, companyName: string = 'Empresa'): Promise<CompanyLayoutConfig> {
+    try {
+      const snap = await getDoc(doc(firestoreDb, 'COMPANY_LAYOUTS', companyId));
+      if (snap.exists()) {
+        const remoteLayout = snap.data() as CompanyLayoutConfig;
+        
+        // Update local storage cache
+        const stored = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
+        const layouts: Record<string, CompanyLayoutConfig> = stored ? JSON.parse(stored) : {};
+        layouts[companyId] = remoteLayout;
+        localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(layouts));
+
+        this.applyCompanyStylesToDOM(remoteLayout);
+        return remoteLayout;
+      }
+    } catch (e) {
+      console.warn('Firestore load failed for company layout, falling back to local storage:', e);
+    }
+
+    const local = this.getCompanyLayout(companyId, companyName);
+    this.applyCompanyStylesToDOM(local);
+    return local;
+  },
+
+  // Save layout & record history version (Saves locally AND to Firestore)
   saveCompanyLayout(layout: CompanyLayoutConfig, updatedBy: string = 'MASTER', changeSummary: string = 'Atualização de layout'): CompanyLayoutConfig {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
@@ -193,6 +221,11 @@ export const layoutService = {
       layouts[layout.companyId] = updatedLayout;
       localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(layouts));
 
+      // Save to Firestore asynchronously
+      setDoc(doc(firestoreDb, 'COMPANY_LAYOUTS', layout.companyId), updatedLayout)
+        .then(() => console.log(`✓ Company layout for ${layout.companyId} synced to Firestore`))
+        .catch(err => console.error('Error saving company layout to Firestore:', err));
+
       // Record history entry
       this.addHistoryEntry({
         id: 'hist-' + Date.now(),
@@ -204,11 +237,58 @@ export const layoutService = {
         snapshot: JSON.parse(JSON.stringify(updatedLayout))
       });
 
+      // Apply dynamic CSS rules to current DOM session
+      this.applyCompanyStylesToDOM(updatedLayout);
+
+      // Broadcast event so active views re-render in real time
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('gestrh_layout_changed', { detail: updatedLayout }));
+      }
+
       return updatedLayout;
     } catch (e) {
       console.error('Error saving company layout:', e);
       return layout;
     }
+  },
+
+  // Apply Company Dynamic CSS Theme to the DOM
+  applyCompanyStylesToDOM(layout: CompanyLayoutConfig) {
+    if (typeof document === 'undefined') return;
+
+    let styleTag = document.getElementById('gestrh-company-theme-styles');
+    if (!styleTag) {
+      styleTag = document.createElement('style');
+      styleTag.id = 'gestrh-company-theme-styles';
+      document.head.appendChild(styleTag);
+    }
+
+    const primaryHex = layout.identity?.primaryColor || '#059669';
+    const secondaryHex = layout.identity?.secondaryColor || '#0f172a';
+
+    styleTag.innerHTML = `
+      :root {
+        --company-primary-color: ${primaryHex};
+        --company-secondary-color: ${secondaryHex};
+      }
+
+      /* Dynamically theme sidebars with secondary color */
+      aside#admin-main-sidebar,
+      div#admin-mobile-header {
+        background-color: ${secondaryHex} !important;
+      }
+
+      /* Primary buttons and active badges override */
+      .bg-company-primary {
+        background-color: ${primaryHex} !important;
+      }
+      .text-company-primary {
+        color: ${primaryHex} !important;
+      }
+      .border-company-primary {
+        border-color: ${primaryHex} !important;
+      }
+    `;
   },
 
   // History management

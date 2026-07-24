@@ -1,6 +1,6 @@
 {
   "name": "Rafaela Lourenço RH",
   "description": "Plataforma de Recrutamento, Seleção e Gestão de Pessoas (GestRH) com módulo Consultor de RH (Multi-Tenant, CRM, Vagas, Pipeline Kanban, IA de Triagem e Finanças).",
-  "requestFramePermissions": ["camera", "microphone"],
+  "requestFramePermissions": ["camera", "microphone", "geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

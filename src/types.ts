@@ -120,6 +120,7 @@ export interface Employee {
   status: EmployeeStatus;
   avatarUrl?: string;
   companyId?: string;
+  cpf?: string;
 
   // Vale Transporte (VT)
   hasValeTransporte?: boolean;
@@ -149,6 +150,11 @@ export interface TimeRegister {
   totalHours: number;
   extraHours: number;
   status: 'Pendente' | 'Aprovado' | 'Rejeitado';
+  location?: string;
+  latitude?: number;
+  longitude?: number;
+  facialVerified?: boolean;
+  facialPhotoUrl?: string;
 }
 
 export interface VacationRequest {
@@ -369,6 +375,40 @@ export interface PointCorrectionRequest {
   approvedDate?: string;
   createdAt?: string;
   companyId?: string;
+}
+
+export interface UserAccount {
+  id: string;
+  name: string;
+  email: string;
+  role: 'Empresa Administradora' | 'RH' | 'Funcionário' | 'Coordenador' | 'Consultor RH' | 'Master' | 'MASTER' | 'OWNER' | string;
+  department?: string;
+  companyId?: string;
+  status: 'Ativo' | 'Bloqueado' | string;
+  username?: string;
+  password?: string;
+  temporaryPassword?: string;
+  mustChangePassword?: boolean;
+  termsAccepted?: boolean;
+  termsAcceptedAt?: string;
+  dataConfirmed?: boolean;
+  permitirAplicativoPonto?: boolean;
+  cpf?: string;
+  logs?: any[];
+  lastLoginStatus?: string;
+  createdBy?: string;
+  blockedDate?: string;
+}
+
+export interface SaaSCompany {
+  id: string;
+  name: string;
+  cnpj?: string;
+  status?: string;
+  planId?: string;
+  planName?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface INSSBracket {

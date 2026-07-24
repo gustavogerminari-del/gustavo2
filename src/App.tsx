@@ -12,7 +12,9 @@ import PublicJobPage from './components/PublicJobPage';
 import CandidateInterviewRoom from './components/interview/CandidateInterviewRoom';
 import { generateJobSlug } from './components/publicJobUtils';
 import { firebaseService } from './firebase';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { UserAccount } from './types_master';
+import { visualBuilderService } from './services/visualBuilderService';
 import { 
   Employee, 
   Job, 
@@ -47,15 +49,13 @@ import {
   INITIAL_TERMINATIONS
 } from './data';
 
-export default function App() {
+function AppContent() {
   // Navigation / View Controller ('portal' | 'login' | 'admin')
   const [view, setView] = useState<'portal' | 'login' | 'admin'>('portal');
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname + window.location.search);
 
-  // Auth state
-  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
-    return firebaseService.auth.getCurrentUser();
-  });
+  // Auth state from Context
+  const { currentUser, setCurrentUser, logout } = useAuth();
 
   // --- STATE PERSISTENCE ENGINE (isolated by companyId) ---
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -96,6 +96,12 @@ export default function App() {
       setCurrentPath(window.location.pathname + window.location.search);
     };
     window.addEventListener('popstate', handleLocationChange);
+
+    // Initialize Global Design System Theme
+    visualBuilderService.loadGlobalConfig().then(cfg => {
+      visualBuilderService.applyGlobalStylesToDOM(cfg);
+    });
+
     return () => window.removeEventListener('popstate', handleLocationChange);
   }, []);
 
@@ -436,8 +442,8 @@ export default function App() {
 
   // Auth logout handler
   const handleLogout = async () => {
-    await firebaseService.auth.signOut();
-    setCurrentUser(null);
+    await logout();
+    setView('portal');
   };
 
   // --- PERSISTENCE UPDATE HANDLERS (Write-back to virtual Firestore database) ---
@@ -704,6 +710,7 @@ export default function App() {
             settings={settings}
             currentUser={currentUser}
             onLogout={handleLogout}
+            onUpdateCurrentUser={(updated) => setCurrentUser(updated)}
             onUpdateEmployees={handleUpdateEmployees}
             onUpdateJobs={handleUpdateJobs}
             onUpdateCandidates={handleUpdateCandidates}
@@ -735,5 +742,13 @@ export default function App() {
         )
       )}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

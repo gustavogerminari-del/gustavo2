@@ -152,10 +152,12 @@ export default function CompanyLayoutEditor({
   // Reload Layout whenever Company selection changes
   useEffect(() => {
     if (activeCompany) {
-      const compLayout = layoutService.getCompanyLayout(activeCompany.id, activeCompany.name);
-      setLayout(compLayout);
-      setHistory(layoutService.getHistory(activeCompany.id));
-      setRequests(layoutService.getChangeRequests(activeCompany.id));
+      layoutService.loadCompanyLayoutAsync(activeCompany.id, activeCompany.name).then(compLayout => {
+        setLayout(compLayout);
+        setHistory(layoutService.getHistory(activeCompany.id));
+        setRequests(layoutService.getChangeRequests(activeCompany.id));
+        layoutService.applyCompanyStylesToDOM(compLayout);
+      });
     }
   }, [currentCompanyId]);
 
@@ -168,7 +170,7 @@ export default function CompanyLayoutEditor({
     setHistory(layoutService.getHistory(updated.companyId));
     setIsSaveModalOpen(false);
     setChangeSummary('');
-    triggerToast(`Layout da empresa "${updated.companyName}" salvo com sucesso! (Versão v${updated.version})`);
+    triggerToast(`🚀 Layout da empresa "${updated.companyName}" salvo e publicado AO VIVO na página do cliente! (Versão v${updated.version})`);
   };
 
   // Restore Layout Version

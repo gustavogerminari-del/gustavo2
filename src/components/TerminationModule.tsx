@@ -422,6 +422,34 @@ export default function TerminationModule({
       });
       onUpdateEmployees(updatedEmployees);
 
+      // 4. Auto-block user account point access on termination
+      try {
+        const users = await firebaseService.db.getCollection<UserAccount>('USERS');
+        const linkedUser = users.find(u => u.employeeId === empId || u.email.trim().toLowerCase() === selectedEmployee.email.trim().toLowerCase());
+        if (linkedUser) {
+          const nowStr = `${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`;
+          const blockedUser: UserAccount = {
+            ...linkedUser,
+            status: 'Bloqueado',
+            permitirAplicativoPonto: false,
+            blockedDate: nowStr,
+            logs: [
+              ...(linkedUser.logs || []),
+              {
+                id: `log-${Date.now()}`,
+                action: 'Bloqueio',
+                timestamp: nowStr,
+                performedBy: currentUser?.name || 'Sistema (Desligamento)',
+                details: `Bloqueio automático de acesso ao ponto devido ao desligamento/rescisão do funcionário.`
+              }
+            ]
+          };
+          await firebaseService.db.saveDoc('USERS', blockedUser);
+        }
+      } catch (err) {
+        console.error('Error auto-blocking terminated employee user account:', err);
+      }
+
       // Clean up form and redirect to history
       setSelectedTerm(newTermination);
       setActiveTab('rescisao');
