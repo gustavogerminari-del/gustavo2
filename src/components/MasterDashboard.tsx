@@ -525,7 +525,7 @@ export default function MasterDashboard({ currentUser, onLogout }: MasterDashboa
             }`}
           >
             <Sparkles className="h-4.5 w-4.5 text-amber-400 animate-pulse" />
-            <span className="font-extrabold flex-1 text-left">🎨 Construtor Visual Global</span>
+            <span className="font-extrabold flex-1 text-left">🎨 GestRH Builder</span>
             <span className="bg-amber-500 text-slate-950 text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase">Master</span>
           </button>
 

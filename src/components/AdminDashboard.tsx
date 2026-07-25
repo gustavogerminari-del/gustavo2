@@ -274,20 +274,28 @@ export default function AdminDashboard({
 
     // Real-time listener for layout changes saved in Master / Client editor
     const handleLayoutUpdated = (e: any) => {
-      const eventCompId = e.detail?.companyId;
+      const updatedLayoutFromEvent = e.detail;
+      const eventCompId = updatedLayoutFromEvent?.companyId;
       if (!eventCompId || eventCompId === compId) {
-        const fresh = layoutService.getCompanyLayout(compId, settings?.companyName || 'Empresa ABC');
-        setCurrentCompanyLayout(fresh);
-        layoutService.applyCompanyStylesToDOM(fresh);
+        if (updatedLayoutFromEvent && updatedLayoutFromEvent.identity) {
+          setCurrentCompanyLayout(updatedLayoutFromEvent);
+          layoutService.applyCompanyStylesToDOM(updatedLayoutFromEvent);
+        } else {
+          const fresh = layoutService.getCompanyLayout(compId, settings?.companyName || 'Empresa ABC');
+          setCurrentCompanyLayout(fresh);
+          layoutService.applyCompanyStylesToDOM(fresh);
+        }
       }
     };
 
     window.addEventListener('gestrh_layout_changed', handleLayoutUpdated);
     window.addEventListener('gestrh_global_designer_changed', handleLayoutUpdated);
+    window.addEventListener('gestrh_client_models_changed', handleLayoutUpdated);
 
     return () => {
       window.removeEventListener('gestrh_layout_changed', handleLayoutUpdated);
       window.removeEventListener('gestrh_global_designer_changed', handleLayoutUpdated);
+      window.removeEventListener('gestrh_client_models_changed', handleLayoutUpdated);
     };
   }, [currentUser, settings]);
 
@@ -306,6 +314,34 @@ export default function AdminDashboard({
 
   // Master Visual Builder (Master Designer No-Code)
   const [isMasterBuilderModalOpen, setIsMasterBuilderModalOpen] = useState(false);
+  const [builderInitialPageId, setBuilderInitialPageId] = useState<string>('page-dashboard');
+
+  const getPageIdFromTab = (tab: string) => {
+    switch (tab) {
+      case 'dashboard': return 'page-dashboard';
+      case 'funcionarios': return 'page-rh-emp';
+      case 'ponto':
+      case 'acessos-ponto': return 'page-rh-ponto';
+      case 'folha': return 'page-rh-hol';
+      case 'ferias': return 'page-rh-ferias';
+      case 'beneficios': return 'page-rh-ben';
+      case 'vagas': return 'page-rec-vagas';
+      case 'triagem':
+      case 'recrutamento': return 'page-rec-ats';
+      case 'banco-talentos': return 'page-rec-talentos';
+      case 'entrevistas-ia': return 'page-rec-ia';
+      case 'relatorios': return 'page-reports';
+      case 'configuracoes': return 'page-config';
+      case 'chat-ia': return 'page-chat-ia';
+      default: return 'page-dashboard';
+    }
+  };
+
+  const handleOpenPageEditor = () => {
+    const pageId = getPageIdFromTab(activeTab);
+    setBuilderInitialPageId(pageId);
+    setIsMasterBuilderModalOpen(true);
+  };
 
   // Layout Request Modal for Client Admin
   const [isLayoutRequestModalOpen, setIsLayoutRequestModalOpen] = useState(false);
@@ -1227,33 +1263,48 @@ export default function AdminDashboard({
       )}
 
       {/* Mobile Top Bar */}
-      <div className="bg-[#047857] text-white p-4 flex md:hidden items-center justify-between border-b border-emerald-600 shadow-md">
+      <div 
+        id="admin-mobile-header"
+        style={{ backgroundColor: companyLayout?.identity?.secondaryColor || '#047857' }}
+        className="text-white p-4 flex md:hidden items-center justify-between border-b border-white/10 shadow-md"
+      >
         <div className="flex items-center space-x-2">
-          <Building2 className="h-6 w-6 text-emerald-300" />
-          <span className="font-display font-bold text-base">GestRH</span>
+          {companyLayout?.identity?.logoUrl ? (
+            <img src={companyLayout.identity.logoUrl} alt="Logo" className="h-6 w-auto object-contain rounded" />
+          ) : (
+            <Building2 className="h-6 w-6 text-emerald-300" />
+          )}
+          <span className="font-display font-bold text-base">{companyLayout?.identity?.displayName || 'GestRH'}</span>
         </div>
         <button 
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="p-2 hover:bg-emerald-800 rounded-lg text-emerald-100"
+          className="p-2 hover:bg-white/10 rounded-lg text-white"
         >
           <Menu className="h-6 w-6" />
         </button>
       </div>
 
-      {/* --- SIDEBAR LAYOUT (Green Theme) --- */}
-      <aside className={`
-        fixed md:static inset-y-0 left-0 z-40 w-64 bg-[#047857] text-white flex flex-col justify-between 
-        transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 
-        transition-transform duration-300 ease-in-out border-r border-emerald-700 shrink-0 shadow-xl md:shadow-none
-      `}>
+      {/* --- SIDEBAR LAYOUT --- */}
+      <aside 
+        id="admin-main-sidebar"
+        style={{ backgroundColor: companyLayout?.identity?.secondaryColor || '#047857' }}
+        className={`
+          fixed md:static inset-y-0 left-0 z-40 w-64 text-white flex flex-col justify-between 
+          transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 
+          transition-transform duration-300 ease-in-out border-r border-white/10 shrink-0 shadow-xl md:shadow-none
+        `}
+      >
         <div>
           {/* Company Brand Logo */}
-          <div className="p-6 border-b border-emerald-600 flex items-center space-x-3 justify-between">
+          <div className="p-6 border-b border-white/10 flex items-center space-x-3 justify-between">
             <div className="flex items-center space-x-3">
               {companyLayout?.identity?.logoUrl ? (
                 <img src={companyLayout.identity.logoUrl} alt="Logo" className="h-8 w-auto max-w-[120px] object-contain rounded" />
               ) : (
-                <div className="p-2 bg-emerald-500 rounded-xl text-white">
+                <div 
+                  className="p-2 rounded-xl text-white shadow-sm"
+                  style={{ backgroundColor: companyLayout?.identity?.primaryColor || '#059669' }}
+                >
                   <Building2 className="h-5 w-5" />
                 </div>
               )}
@@ -1261,7 +1312,7 @@ export default function AdminDashboard({
                 <h2 className="font-display font-bold text-lg leading-none">
                   {companyLayout?.identity?.displayName || 'GestRH'}
                 </h2>
-                <p className="text-emerald-300 text-[10px] tracking-wider uppercase font-semibold mt-0.5">
+                <p className="text-white/70 text-[10px] tracking-wider uppercase font-semibold mt-0.5">
                   Plataforma de RH
                 </p>
               </div>
@@ -1655,9 +1706,23 @@ export default function AdminDashboard({
             </p>
           </div>
 
-          {/* Right Area Date badge (Matching Tuesday, 21 July) */}
-          <div className="shrink-0 bg-emerald-50 text-emerald-800 border border-emerald-100 px-4 py-2 rounded-xl text-xs font-semibold self-start sm:self-center shadow-sm">
-            terça-feira, 21 de julho
+          {/* Right Area Actions & Date badge */}
+          <div className="flex items-center space-x-3 shrink-0 self-start sm:self-center">
+            {((currentUser?.role as string) === 'Master' || (currentUser?.role as string) === 'MASTER' || (currentUser?.role as string) === 'OWNER') && (
+              <button
+                type="button"
+                onClick={handleOpenPageEditor}
+                className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs px-4 py-2 rounded-xl shadow-lg shadow-amber-500/20 border border-amber-300 flex items-center space-x-2 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                title="Entrar no GestRH Builder para editar o layout desta página"
+              >
+                <Sparkles className="h-4 w-4 animate-pulse text-slate-950" />
+                <span>Editar esta página</span>
+              </button>
+            )}
+
+            <div className="bg-emerald-50 text-emerald-800 border border-emerald-100 px-4 py-2 rounded-xl text-xs font-semibold shadow-sm">
+              terça-feira, 21 de julho
+            </div>
           </div>
         </header>
 
@@ -4359,11 +4424,11 @@ export default function AdminDashboard({
           <div className="fixed bottom-6 right-6 z-40 flex items-center space-x-2">
             <button
               type="button"
-              onClick={() => setIsMasterBuilderModalOpen(true)}
+              onClick={handleOpenPageEditor}
               className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs px-4 py-3 rounded-2xl shadow-2xl shadow-amber-500/30 border border-amber-300 flex items-center space-x-2 transition-all hover:scale-105 active:scale-95 cursor-pointer"
             >
               <Sparkles className="h-4 w-4 animate-pulse text-slate-950" />
-              <span>Entrar no Modo Edição (MASTER DESIGNER)</span>
+              <span>Editar esta página</span>
             </button>
           </div>
 
@@ -4372,6 +4437,7 @@ export default function AdminDashboard({
             <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto flex flex-col animate-in fade-in">
               <MasterVisualBuilder
                 currentUserRole={currentUser.role}
+                initialPageId={builderInitialPageId}
                 onClose={() => setIsMasterBuilderModalOpen(false)}
                 triggerToast={triggerToast}
               />

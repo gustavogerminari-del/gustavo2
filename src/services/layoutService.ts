@@ -252,6 +252,37 @@ export const layoutService = {
     }
   },
 
+  // Auto-save layout draft instantly on change without bloating version history
+  autoSaveCompanyLayoutDraft(layout: CompanyLayoutConfig): CompanyLayoutConfig {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
+      const layouts: Record<string, CompanyLayoutConfig> = stored ? JSON.parse(stored) : {};
+
+      const updatedLayout: CompanyLayoutConfig = {
+        ...layout,
+        updatedAt: new Date().toISOString()
+      };
+
+      layouts[layout.companyId] = updatedLayout;
+      localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(layouts));
+
+      // Save to Firestore asynchronously
+      setDoc(doc(firestoreDb, 'COMPANY_LAYOUTS', layout.companyId), updatedLayout)
+        .catch(err => console.warn('Firestore draft sync warning:', err));
+
+      this.applyCompanyStylesToDOM(updatedLayout);
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('gestrh_layout_changed', { detail: updatedLayout }));
+      }
+
+      return updatedLayout;
+    } catch (e) {
+      console.error('Error auto saving draft layout:', e);
+      return layout;
+    }
+  },
+
   // Apply Company Dynamic CSS Theme to the DOM
   applyCompanyStylesToDOM(layout: CompanyLayoutConfig) {
     if (typeof document === 'undefined') return;

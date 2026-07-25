@@ -161,6 +161,16 @@ export default function CompanyLayoutEditor({
     }
   }, [currentCompanyId]);
 
+  // Auto-save draft on every change to ensure alterations are NEVER lost
+  useEffect(() => {
+    if (layout && layout.companyId) {
+      const timer = setTimeout(() => {
+        layoutService.autoSaveCompanyLayoutDraft(layout);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [layout]);
+
   // Handle Save Layout
   const handleSave = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -431,13 +441,23 @@ export default function CompanyLayoutEditor({
             </select>
           </div>
 
-          <button
-            onClick={() => setIsSaveModalOpen(true)}
-            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs px-5 py-3 rounded-2xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center space-x-2 cursor-pointer active:scale-95"
-          >
-            <Save className="h-4 w-4" />
-            <span>Salvar Layout</span>
-          </button>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => handleSave()}
+              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs px-5 py-3 rounded-2xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center space-x-2 cursor-pointer active:scale-95"
+              title="Salvar e publicar alterações do layout imediatamente"
+            >
+              <Save className="h-4 w-4" />
+              <span>Salvar Layout</span>
+            </button>
+            <button
+              onClick={() => setIsSaveModalOpen(true)}
+              className="bg-slate-800 hover:bg-slate-700 text-slate-300 p-3 rounded-2xl transition-all cursor-pointer"
+              title="Salvar criando nota personalizada no histórico"
+            >
+              <FileText className="h-4 w-4" />
+            </button>
+          </div>
 
           {onClose && (
             <button

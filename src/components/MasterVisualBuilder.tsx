@@ -58,7 +58,15 @@ import {
   Building2,
   Link,
   Edit2,
-  Sparkle
+  Sparkle,
+  Bot,
+  Wand2,
+  MessageSquare,
+  Undo,
+  Redo,
+  Play,
+  Video,
+  Image as ImageIcon
 } from 'lucide-react';
 
 import {
@@ -68,14 +76,21 @@ import {
   VisualBuilderBlock,
   ComponentStyleOverride,
   DesignerVersionHistory,
-  DEFAULT_GLOBAL_DESIGN
+  AiDesignerLog,
+  ClientModel,
+  CustomFieldDefinition,
+  DEFAULT_GLOBAL_DESIGN,
+  DEFAULT_CLIENT_MODELS
 } from '../services/visualBuilderService';
+
+import { aiDesignerEngine, AiProposal } from '../services/aiDesignerEngine';
 
 import { SaaSCompany } from '../types_master';
 
 interface MasterVisualBuilderProps {
   currentUserRole?: string;
   companies?: SaaSCompany[];
+  initialPageId?: string;
   onClose?: () => void;
   triggerToast?: (msg: string) => void;
 }
@@ -83,25 +98,34 @@ interface MasterVisualBuilderProps {
 export default function MasterVisualBuilder({
   currentUserRole = 'MASTER',
   companies = [],
+  initialPageId,
   onClose,
   triggerToast
 }: MasterVisualBuilderProps) {
   // Main state
   const [config, setConfig] = useState<GlobalDesignSystemConfig>(DEFAULT_GLOBAL_DESIGN);
   const [isEditMode, setIsEditMode] = useState<boolean>(true);
-  const [activeSubTab, setActiveSubTab] = useState<'themes' | 'pages' | 'library' | 'history' | 'white_label'>('themes');
+  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'pages' | 'library' | 'themes' | 'menus' | 'white_label' | 'history' | 'ai_designer'>(
+    initialPageId && initialPageId !== 'page-dashboard' ? 'pages' : 'dashboard'
+  );
   
+  // Undo & Redo stacks
+  const [undoStack, setUndoStack] = useState<GlobalDesignSystemConfig[]>([]);
+  const [redoStack, setRedoStack] = useState<GlobalDesignSystemConfig[]>([]);
+
   // Device Preview Mode
   const [deviceMode, setDeviceMode] = useState<'desktop' | 'laptop' | 'tablet' | 'mobile'>('desktop');
 
   // Selected element for live inspector
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>('b-1');
   const [selectedBlock, setSelectedBlock] = useState<VisualBuilderBlock | null>(null);
-  const [selectedPageId, setSelectedPageId] = useState<string>('page-home');
+  const [selectedPageId, setSelectedPageId] = useState<string>(initialPageId || 'page-dashboard');
 
   // AI Master Assistant state
   const [aiPrompt, setAiPrompt] = useState<string>('');
   const [isAiGenerating, setIsAiGenerating] = useState<boolean>(false);
+  const [currentAiProposal, setCurrentAiProposal] = useState<AiProposal | null>(null);
+  const [aiLogsList, setAiLogsList] = useState<AiDesignerLog[]>([]);
 
   // Scope toggle
   const [applyScope, setApplyScope] = useState<'global' | 'page'>('global');
@@ -112,13 +136,92 @@ export default function MasterVisualBuilder({
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
 
-  // New Page Modal
-  const [isNewPageModalOpen, setIsNewPageModalOpen] = useState(false);
-  const [newPageTitle, setNewPageTitle] = useState('');
-  const [newPageIcon, setNewPageIcon] = useState('LayoutDashboard');
+  // Security authorization check for MASTER_BUILDER
+  const isAuthorized = ['MASTER', 'OWNER', 'Master', 'MASTER_BUILDER'].includes(currentUserRole);
+
+  const updateConfigWithHistory = (newConfig: GlobalDesignSystemConfig) => {
+    setUndoStack(prev => [...prev.slice(-15), config]);
+    setRedoStack([]);
+    setConfig(newConfig);
+    setHasUnsavedChanges(true);
+  };
+
+  const handleUndo = () => {
+    if (undoStack.length === 0) return;
+    const previous = undoStack[undoStack.length - 1];
+    setRedoStack(prev => [...prev, config]);
+    setUndoStack(prev => prev.slice(0, -1));
+    setConfig(previous);
+    if (triggerToast) triggerToast('↺ Ação desfeita com sucesso!');
+  };
+
+  const handleRedo = () => {
+    if (redoStack.length === 0) return;
+    const next = redoStack[redoStack.length - 1];
+    setUndoStack(prev => [...prev, config]);
+    setRedoStack(prev => prev.slice(0, -1));
+    setConfig(next);
+    if (triggerToast) triggerToast('↻ Ação refeita com sucesso!');
+  };
+
+  // New Page & Template Modal State (PROMPT 06)
+  const [isNewPageModalOpen, setIsNewPageModalOpen] = useState<boolean>(false);
+  const [newPageTitle, setNewPageTitle] = useState<string>('');
+  const [newPageIcon, setNewPageIcon] = useState<string>('LayoutDashboard');
+  const [isLivePreviewMode, setIsLivePreviewMode] = useState<boolean>(false);
+  const [isPageSettingsModalOpen, setIsPageSettingsModalOpen] = useState<boolean>(false);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState<boolean>(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
+  const [pageSettings, setPageSettings] = useState({
+    title: '',
+    slug: '',
+    iconName: 'LayoutDashboard',
+    isInitialPage: false,
+    visible: true,
+    permissionLevel: '3_developer' as '1_design' | '2_layout' | '3_developer'
+  });
+
+  // Keyboard Shortcuts for Undo/Redo & Delete block
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      const isInput = targetTag === 'input' || targetTag === 'textarea' || (e.target as HTMLElement)?.isContentEditable;
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        if (isInput) return;
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') {
+        if (isInput) return;
+        handleRedo();
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedBlockId) {
+        if (isInput) return;
+        handleDeleteBlock(selectedBlockId);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undoStack, redoStack, config, selectedBlockId]);
 
   // Selected White-label Company
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
+
+  // CLIENT MODELS STATE (PROMPT 05)
+  const [clientModelsList, setClientModelsList] = useState<ClientModel[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string>('model-logistica');
+  const [editingModel, setEditingModel] = useState<ClientModel | null>(null);
+  const [activeModelSection, setActiveModelSection] = useState<'identidade' | 'modulos' | 'menus' | 'campos' | 'plano'>('identidade');
+
+  // Custom Field Form State
+  const [newCfLabel, setNewCfLabel] = useState('');
+  const [newCfFieldName, setNewCfFieldName] = useState('');
+  const [newCfModule, setNewCfModule] = useState<'funcionarios' | 'recrutamento' | 'ponto' | 'folha' | 'ferias' | 'beneficios' | 'geral'>('funcionarios');
+  const [newCfType, setNewCfType] = useState<'text' | 'number' | 'date' | 'select' | 'boolean'>('text');
+  const [newCfOptions, setNewCfOptions] = useState('');
+  const [newCfRequired, setNewCfRequired] = useState(false);
 
   // Load configuration
   useEffect(() => {
@@ -127,17 +230,29 @@ export default function MasterVisualBuilder({
       const data = await visualBuilderService.loadGlobalConfig();
       setConfig(data);
       setHistoryList(visualBuilderService.getHistory());
-      if (data.customPages.length > 0) {
-        setSelectedPageId(data.customPages[0].id);
-        if (data.customPages[0].blocks.length > 0) {
-          setSelectedBlockId(data.customPages[0].blocks[0].id);
-          setSelectedBlock(data.customPages[0].blocks[0]);
+      setAiLogsList(visualBuilderService.getAiLogs());
+
+      // Load Client Models (PROMPT 05)
+      const models = visualBuilderService.getClientModels();
+      setClientModelsList(models);
+      if (models.length > 0) {
+        setSelectedModelId(models[0].id);
+        setEditingModel(JSON.parse(JSON.stringify(models[0])));
+      }
+
+      const targetId = initialPageId || 'page-dashboard';
+      const foundPage = data.customPages.find(p => p.id === targetId) || data.customPages[0];
+      if (foundPage) {
+        setSelectedPageId(foundPage.id);
+        if (foundPage.blocks.length > 0) {
+          setSelectedBlockId(foundPage.blocks[0].id);
+          setSelectedBlock(foundPage.blocks[0]);
         }
       }
       setLoading(false);
     }
     loadData();
-  }, []);
+  }, [initialPageId]);
 
   // Sync selected block when block ID or page changes
   useEffect(() => {
@@ -441,6 +556,184 @@ export default function MasterVisualBuilder({
     if (triggerToast) triggerToast(`✓ Página "${newPageTitle}" criada!`);
   };
 
+  // Open & Save Page Settings Modal (PROMPT 06)
+  const handleOpenPageSettings = () => {
+    const page = config.customPages.find(p => p.id === selectedPageId);
+    if (!page) return;
+    setPageSettings({
+      title: page.title,
+      slug: page.slug,
+      iconName: page.iconName || 'LayoutDashboard',
+      isInitialPage: !!page.isInitialPage,
+      visible: page.visible,
+      permissionLevel: '3_developer'
+    });
+    setIsPageSettingsModalOpen(true);
+  };
+
+  const handleSavePageSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updatedPages = config.customPages.map(page => {
+      if (page.id === selectedPageId) {
+        return {
+          ...page,
+          title: pageSettings.title,
+          slug: pageSettings.slug.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+          iconName: pageSettings.iconName,
+          isInitialPage: pageSettings.isInitialPage,
+          visible: pageSettings.visible
+        };
+      }
+      if (pageSettings.isInitialPage) {
+        return { ...page, isInitialPage: false };
+      }
+      return page;
+    });
+
+    setConfig(prev => ({ ...prev, customPages: updatedPages }));
+    setIsPageSettingsModalOpen(false);
+    setHasUnsavedChanges(true);
+    if (triggerToast) triggerToast('✓ Configurações da página salvas!');
+  };
+
+  // Duplicate Page
+  const handleDuplicatePage = (pageId: string) => {
+    const target = config.customPages.find(p => p.id === pageId);
+    if (!target) return;
+
+    const newPage: CustomVisualPage = {
+      ...JSON.parse(JSON.stringify(target)),
+      id: `page-${Date.now()}`,
+      title: `${target.title} (Cópia)`,
+      slug: `${target.slug}-copia`,
+      order: config.customPages.length + 1
+    };
+
+    setConfig(prev => ({ ...prev, customPages: [...prev.customPages, newPage] }));
+    setSelectedPageId(newPage.id);
+    setHasUnsavedChanges(true);
+    if (triggerToast) triggerToast(`✓ Página "${newPage.title}" duplicada!`);
+  };
+
+  // Delete Page
+  const handleDeletePage = (pageId: string) => {
+    if (config.customPages.length <= 1) {
+      alert('É necessário manter pelo menos uma página no sistema.');
+      return;
+    }
+    const pageToDelete = config.customPages.find(p => p.id === pageId);
+    if (confirm(`Tem certeza que deseja excluir a página "${pageToDelete?.title}"?`)) {
+      const updated = config.customPages.filter(p => p.id !== pageId);
+      setConfig(prev => ({ ...prev, customPages: updated }));
+      if (selectedPageId === pageId) {
+        setSelectedPageId(updated[0].id);
+      }
+      setHasUnsavedChanges(true);
+      if (triggerToast) triggerToast('✓ Página excluída com sucesso!');
+    }
+  };
+
+  // Apply Pre-made Page Template (PROMPT 06)
+  const handleApplyTemplateToNewPage = (templateKey: string) => {
+    const timestamp = Date.now();
+    let title = 'Nova Página';
+    let slug = 'nova-pagina';
+    let iconName = 'Layout';
+    let blocks: VisualBuilderBlock[] = [];
+
+    if (templateKey === 'dashboard_rh') {
+      title = 'Dashboard RH Executivo';
+      slug = 'dashboard-rh';
+      iconName = 'BarChart3';
+      blocks = [
+        { id: `b-tmpl-banner-${timestamp}`, type: 'banner', title: '📢 Painel de Comunicação & Metas de RH', subtitle: 'Acompanhamento em tempo real do ecossistema GestRH', size: 'full', order: 1, style: { bgColor: '#1e1b4b', textColor: '#e0e7ff', borderRadius: '16px', padding: '20px' } },
+        { id: `b-tmpl-kpi1-${timestamp}`, type: 'kpi', title: 'Colaboradores Ativos (Headcount)', subtitle: '342 cadastrados (+8 este mês)', size: 'half', order: 2, style: { bgColor: '#ffffff', textColor: '#0f172a', borderRadius: '16px' } },
+        { id: `b-tmpl-kpi2-${timestamp}`, type: 'kpi', title: 'Taxa de Turnover Anual', subtitle: '1.4% (Meta: <2.5%)', size: 'half', order: 3, style: { bgColor: '#ffffff', textColor: '#0f172a', borderRadius: '16px' } },
+        { id: `b-tmpl-chart-${timestamp}`, type: 'chart', title: 'Evolução de Admissões vs Desligamentos', subtitle: 'Analytics dos últimos 6 meses', size: 'full', order: 4, style: { bgColor: '#ffffff', textColor: '#0f172a', borderRadius: '16px' } },
+        { id: `b-tmpl-table-${timestamp}`, type: 'table', title: 'Próximos Aniversariantes & Tempo de Casa', subtitle: 'Celebrações do mês', size: 'full', order: 5, style: { bgColor: '#ffffff', textColor: '#0f172a', borderRadius: '16px' } }
+      ];
+    } else if (templateKey === 'funcionarios') {
+      title = 'Gestão de Colaboradores & Dossiê';
+      slug = 'funcionarios-dossie';
+      iconName = 'Users';
+      blocks = [
+        { id: `b-tmpl-title-${timestamp}`, type: 'title', title: 'Quadro de Funcionários & Equipes', subtitle: 'Consulte registros, documentos e informações contratuais', size: 'full', order: 1, style: { bgColor: '#ffffff', textColor: '#0f172a', borderRadius: '16px' } },
+        { id: `b-tmpl-list-${timestamp}`, type: 'list', title: 'Diretório Interativo de Colaboradores', subtitle: 'Busca rápida por nome, cargo ou unidade', size: 'full', order: 2, style: { bgColor: '#ffffff', textColor: '#0f172a', borderRadius: '16px' } },
+        { id: `b-tmpl-form-${timestamp}`, type: 'form', title: 'Admissão Rápida & Cadastro', subtitle: 'Preencha os dados contratuais do novo colaborador', size: 'full', order: 3, style: { bgColor: '#f8fafc', textColor: '#0f172a', borderRadius: '16px' } }
+      ];
+    } else if (templateKey === 'recrutamento') {
+      title = 'Recrutamento & Seleção (ATS)';
+      slug = 'recrutamento-vagas';
+      iconName = 'Briefcase';
+      blocks = [
+        { id: `b-tmpl-kanban-${timestamp}`, type: 'kanban', title: 'Pipeline de Processos Seletivos Ativos', subtitle: 'Triagem ➔ Entrevista ➔ Teste Técnico ➔ Proposta', size: 'full', order: 1, style: { bgColor: '#ffffff', textColor: '#0f172a', borderRadius: '16px' } },
+        { id: `b-tmpl-table-${timestamp}`, type: 'table', title: 'Banco de Talentos & Candidatos Qualificados', subtitle: 'Filtrados com auxílio da Inteligência Artificial GestRH', size: 'full', order: 2, style: { bgColor: '#ffffff', textColor: '#0f172a', borderRadius: '16px' } }
+      ];
+    } else if (templateKey === 'portal_funcionario') {
+      title = 'Portal do Colaborador';
+      slug = 'portal-colaborador';
+      iconName = 'User';
+      blocks = [
+        { id: `b-tmpl-banner-${timestamp}`, type: 'banner', title: 'Portal do Colaborador — Área Pessoal', subtitle: 'Acesse seu ponto eletrônico, holerites e solicitações', size: 'full', order: 1, style: { bgColor: '#0284c7', textColor: '#ffffff', borderRadius: '16px' } },
+        { id: `b-tmpl-ponto-${timestamp}`, type: 'ponto', title: 'Registro de Ponto Eletrônico (Geolocalizado)', subtitle: 'Sua jornada em tempo real', size: 'half', order: 2, style: { bgColor: '#ffffff', textColor: '#0f172a', borderRadius: '16px' } },
+        { id: `b-tmpl-cal-${timestamp}`, type: 'calendar', title: 'Meu Calendário de Férias & Escalados', subtitle: 'Programação pessoal de descansos', size: 'half', order: 3, style: { bgColor: '#ffffff', textColor: '#0f172a', borderRadius: '16px' } },
+        { id: `b-tmpl-up-${timestamp}`, type: 'upload', title: 'Envio de Dossiê & Atestados', subtitle: 'Faça upload de comprovantes ou documentos pendentes', size: 'full', order: 4, style: { bgColor: '#ffffff', textColor: '#0f172a', borderRadius: '16px' } }
+      ];
+    } else {
+      title = newPageTitle.trim() || 'Nova Página Vazia';
+      slug = title.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      iconName = 'Square';
+      blocks = [
+        { id: `b-tmpl-blank-${timestamp}`, type: 'banner', title: title, subtitle: 'Arraste componentes da biblioteca para montar este espaço', size: 'full', order: 1, style: { bgColor: '#ffffff', textColor: '#0f172a', borderRadius: '16px' } }
+      ];
+    }
+
+    const newPage: CustomVisualPage = {
+      id: `page-${timestamp}`,
+      title,
+      slug,
+      iconName,
+      visible: true,
+      order: config.customPages.length + 1,
+      blocks
+    };
+
+    setConfig(prev => ({ ...prev, customPages: [...prev.customPages, newPage] }));
+    setSelectedPageId(newPage.id);
+    setIsTemplateModalOpen(false);
+    setIsNewPageModalOpen(false);
+    setNewPageTitle('');
+    setHasUnsavedChanges(true);
+    if (triggerToast) triggerToast(`✨ Página "${title}" criada a partir do modelo!`);
+  };
+
+  // Toggle Block Lock / Hide
+  const handleToggleLockBlock = (blockId: string) => {
+    const updatedPages = config.customPages.map(page => ({
+      ...page,
+      blocks: page.blocks.map(b => b.id === blockId ? { ...b, isLocked: !b.isLocked } : b)
+    }));
+    setConfig(prev => ({ ...prev, customPages: updatedPages }));
+    if (selectedBlock && selectedBlock.id === blockId) {
+      setSelectedBlock({ ...selectedBlock, isLocked: !selectedBlock.isLocked });
+    }
+    setHasUnsavedChanges(true);
+    if (triggerToast) triggerToast('✓ Trava do elemento atualizada!');
+  };
+
+  const handleToggleHideBlock = (blockId: string) => {
+    const updatedPages = config.customPages.map(page => ({
+      ...page,
+      blocks: page.blocks.map(b => b.id === blockId ? { ...b, hidden: !b.hidden } : b)
+    }));
+    setConfig(prev => ({ ...prev, customPages: updatedPages }));
+    if (selectedBlock && selectedBlock.id === blockId) {
+      setSelectedBlock({ ...selectedBlock, hidden: !selectedBlock.hidden });
+    }
+    setHasUnsavedChanges(true);
+    if (triggerToast) triggerToast('✓ Visibilidade do elemento atualizada!');
+  };
+
   // Restore history version
   const handleRestoreHistory = async (hist: DesignerVersionHistory) => {
     if (window.confirm(`Deseja restaurar a versão v${hist.version} criada em ${new Date(hist.updatedAt).toLocaleString('pt-BR')}?`)) {
@@ -448,6 +741,230 @@ export default function MasterVisualBuilder({
       await visualBuilderService.saveGlobalConfig(hist.config, 'MASTER', `Restaurada versão v${hist.version}`);
       if (triggerToast) triggerToast(`✓ Versão v${hist.version} restaurada com sucesso!`);
     }
+  };
+
+  // CLIENT MODELS HANDLERS (PROMPT 05)
+  const handleSelectClientModel = (modelId: string) => {
+    setSelectedModelId(modelId);
+    const found = clientModelsList.find(m => m.id === modelId);
+    if (found) {
+      setEditingModel(JSON.parse(JSON.stringify(found)));
+    }
+  };
+
+  const handleSaveClientModel = async () => {
+    if (!editingModel) return;
+    const updatedList = await visualBuilderService.saveClientModel(editingModel);
+    setClientModelsList(updatedList);
+    if (triggerToast) triggerToast(`✓ Modelo "${editingModel.modelName}" salvo com sucesso!`);
+  };
+
+  const handleCreateNewClientModel = () => {
+    const newId = 'model-' + Date.now();
+    const newModel: ClientModel = {
+      id: newId,
+      companyName: 'Empresa Cliente Exemplo',
+      modelName: 'Novo Modelo RH',
+      planTier: 'profissional',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      branding: {
+        systemName: 'GestRH Custom',
+        primaryColor: '#059669',
+        secondaryColor: '#0f172a',
+        accentColor: '#f59e0b',
+        themeMode: 'dark',
+        fontFamily: 'Plus Jakarta Sans'
+      },
+      activeModules: {
+        funcionarios: true,
+        ponto: true,
+        recrutamento: true,
+        bancoTalentos: true,
+        entrevistaIa: true,
+        documentos: true,
+        ferias: true,
+        beneficios: true,
+        treinamentos: true,
+        folha: true,
+        relatorios: true,
+        chatIa: true
+      },
+      customPages: [],
+      customFields: []
+    };
+    setEditingModel(newModel);
+    setSelectedModelId(newId);
+  };
+
+  const handleDuplicateClientModel = async () => {
+    if (!selectedModelId) return;
+    try {
+      const res = await visualBuilderService.duplicateClientModel(selectedModelId);
+      setClientModelsList(res.list);
+      setSelectedModelId(res.newModel.id);
+      setEditingModel(res.newModel);
+      if (triggerToast) triggerToast(`✓ Modelo duplicado como "${res.newModel.modelName}"!`);
+    } catch (e: any) {
+      alert(e.message || 'Erro ao duplicar modelo.');
+    }
+  };
+
+  const handleDeleteClientModel = async () => {
+    if (!selectedModelId) return;
+    if (clientModelsList.length <= 1) {
+      alert('É necessário manter pelo menos um modelo de cliente no sistema.');
+      return;
+    }
+    if (confirm('Tem certeza que deseja excluir este modelo de cliente?')) {
+      const newList = await visualBuilderService.deleteClientModel(selectedModelId);
+      setClientModelsList(newList);
+      if (newList.length > 0) {
+        setSelectedModelId(newList[0].id);
+        setEditingModel(JSON.parse(JSON.stringify(newList[0])));
+      }
+      if (triggerToast) triggerToast('Modelo de cliente excluído com sucesso.');
+    }
+  };
+
+  const handleRestoreClientModel = async () => {
+    if (!selectedModelId) return;
+    if (confirm('Deseja restaurar as configurações originais deste modelo?')) {
+      const newList = await visualBuilderService.restoreClientModelToDefault(selectedModelId);
+      setClientModelsList(newList);
+      const restored = newList.find(m => m.id === selectedModelId);
+      if (restored) setEditingModel(JSON.parse(JSON.stringify(restored)));
+      if (triggerToast) triggerToast('✓ Modelo restaurado para as configurações padrão.');
+    }
+  };
+
+  const handleApplyClientModelToGlobal = async () => {
+    if (!editingModel) return;
+    // Apply branding to global system
+    const updatedGlobalConfig: GlobalDesignSystemConfig = {
+      ...config,
+      systemName: editingModel.branding.systemName || editingModel.companyName,
+      logoUrl: editingModel.branding.logoUrl || config.logoUrl,
+      primaryColor: editingModel.branding.primaryColor,
+      secondaryColor: editingModel.branding.secondaryColor,
+      accentColor: editingModel.branding.accentColor,
+      fontFamily: (editingModel.branding.fontFamily as any) || config.fontFamily,
+      themeMode: editingModel.branding.themeMode
+    };
+
+    updateConfigWithHistory(updatedGlobalConfig);
+    await visualBuilderService.saveGlobalConfig(
+      updatedGlobalConfig,
+      currentUserRole,
+      `Aplicação do Modelo de Cliente: ${editingModel.modelName}`
+    );
+
+    if (triggerToast) triggerToast(`🚀 Modelo "${editingModel.modelName}" aplicado ao sistema com sucesso!`);
+  };
+
+  const handleAddCustomField = () => {
+    if (!editingModel || !newCfLabel.trim()) return;
+    const key = newCfFieldName.trim().toLowerCase().replace(/\s+/g, '_') || 'campo_' + Date.now();
+    const newField: CustomFieldDefinition = {
+      id: 'cf-' + Date.now(),
+      targetModule: newCfModule,
+      label: newCfLabel.trim(),
+      fieldName: key,
+      fieldType: newCfType,
+      options: newCfType === 'select' ? newCfOptions.split(',').map(s => s.trim()).filter(Boolean) : undefined,
+      required: newCfRequired
+    };
+
+    setEditingModel({
+      ...editingModel,
+      customFields: [...(editingModel.customFields || []), newField]
+    });
+
+    setNewCfLabel('');
+    setNewCfFieldName('');
+    setNewCfOptions('');
+    setNewCfRequired(false);
+    if (triggerToast) triggerToast(`✓ Campo "${newField.label}" adicionado ao modelo!`);
+  };
+
+  const handleRemoveCustomField = (fieldId: string) => {
+    if (!editingModel) return;
+    setEditingModel({
+      ...editingModel,
+      customFields: editingModel.customFields.filter(f => f.id !== fieldId)
+    });
+  };
+
+  // AI Proposal Handlers
+  const handleAiAnalyzeCommand = (inputPrompt?: string) => {
+    const textToAnalyze = inputPrompt || aiPrompt;
+    if (!textToAnalyze.trim()) return;
+
+    setIsAiGenerating(true);
+    setTimeout(() => {
+      const proposal = aiDesignerEngine.analyzeCommand(textToAnalyze, config, selectedPageId);
+      setCurrentAiProposal(proposal);
+      setIsAiGenerating(false);
+    }, 400);
+  };
+
+  const handleApproveProposal = async () => {
+    if (!currentAiProposal) return;
+
+    if (currentAiProposal.isBlocked) {
+      alert(currentAiProposal.blockedReason || 'Operação bloqueada por segurança.');
+      return;
+    }
+
+    if (currentAiProposal.newConfigState) {
+      updateConfigWithHistory(currentAiProposal.newConfigState);
+      
+      // Auto-save
+      await visualBuilderService.saveGlobalConfig(
+        currentAiProposal.newConfigState,
+        currentUserRole,
+        `IA Designer: ${currentAiProposal.summary}`
+      );
+      setHistoryList(visualBuilderService.getHistory());
+    }
+
+    // Save AI Log
+    const logEntry: AiDesignerLog = {
+      id: 'ailog-' + Date.now(),
+      timestamp: new Date().toISOString(),
+      user: currentUserRole,
+      command: currentAiProposal.command,
+      pageId: currentAiProposal.pageId,
+      pageTitle: currentAiProposal.pageTitle,
+      status: 'applied',
+      summary: currentAiProposal.summary
+    };
+    visualBuilderService.addAiLog(logEntry);
+    setAiLogsList(visualBuilderService.getAiLogs());
+
+    if (triggerToast) triggerToast('✓ Alterações da IA aplicadas e salvas com sucesso!');
+    setCurrentAiProposal(null);
+    setAiPrompt('');
+  };
+
+  const handleDiscardProposal = () => {
+    if (!currentAiProposal) return;
+
+    const logEntry: AiDesignerLog = {
+      id: 'ailog-' + Date.now(),
+      timestamp: new Date().toISOString(),
+      user: currentUserRole,
+      command: currentAiProposal.command,
+      pageId: currentAiProposal.pageId,
+      pageTitle: currentAiProposal.pageTitle,
+      status: currentAiProposal.isBlocked ? 'blocked' : 'rejected',
+      summary: currentAiProposal.summary
+    };
+    visualBuilderService.addAiLog(logEntry);
+    setAiLogsList(visualBuilderService.getAiLogs());
+
+    setCurrentAiProposal(null);
+    if (triggerToast) triggerToast('Proposta da IA descartada.');
   };
 
   const activePage = config.customPages.find(p => p.id === selectedPageId) || config.customPages[0];
@@ -516,8 +1033,64 @@ export default function MasterVisualBuilder({
           </button>
         </div>
 
-        {/* Toggle Edit Mode / Scope / Save Actions */}
+        {/* Toggle Edit Mode / Undo / Redo / Scope / Save Actions */}
         <div className="flex items-center space-x-2">
+          {/* Undo / Redo */}
+          <div className="bg-slate-800/80 p-1 rounded-xl border border-slate-700 flex items-center space-x-1">
+            <button
+              onClick={handleUndo}
+              disabled={undoStack.length === 0}
+              className={`p-2 rounded-lg text-xs font-bold transition-all ${
+                undoStack.length > 0 ? 'text-amber-400 hover:bg-slate-700 hover:text-white cursor-pointer' : 'text-slate-600 cursor-not-allowed'
+              }`}
+              title="Desfazer (Undo)"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={handleRedo}
+              disabled={redoStack.length === 0}
+              className={`p-2 rounded-lg text-xs font-bold transition-all ${
+                redoStack.length > 0 ? 'text-amber-400 hover:bg-slate-700 hover:text-white cursor-pointer' : 'text-slate-600 cursor-not-allowed'
+              }`}
+              title="Refazer (Redo)"
+            >
+              <RotateCcw className="h-3.5 w-3.5 scale-x-[-1]" />
+            </button>
+          </div>
+
+          {/* Live Preview Mode toggle (Wix style) */}
+          <button
+            onClick={() => setIsLivePreviewMode(!isLivePreviewMode)}
+            className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer border ${
+              isLivePreviewMode ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-extrabold shadow-lg shadow-emerald-500/20' : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+            }`}
+            title="Visualizar a página exatamente como o cliente verá"
+          >
+            <Eye className="h-3.5 w-3.5 text-amber-400" />
+            <span>{isLivePreviewMode ? 'Sair da Visualização' : 'Visualizar Página'}</span>
+          </button>
+
+          {/* Configurações da Página atual */}
+          <button
+            onClick={handleOpenPageSettings}
+            className="px-3 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer bg-slate-800 text-slate-300 border border-slate-700 hover:text-white hover:bg-slate-700"
+            title="Configurações e rota da página atual"
+          >
+            <Settings className="h-3.5 w-3.5 text-sky-400" />
+            <span className="hidden md:inline">Configurações da Página</span>
+          </button>
+
+          {/* Histórico de Versões */}
+          <button
+            onClick={() => setIsHistoryModalOpen(true)}
+            className="px-3 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer bg-slate-800 text-slate-300 border border-slate-700 hover:text-white hover:bg-slate-700"
+            title="Histórico de versões salvas"
+          >
+            <History className="h-3.5 w-3.5 text-amber-400" />
+            <span className="hidden md:inline">Histórico</span>
+          </button>
+
           {/* Scope selection */}
           <div className="bg-slate-800/80 p-1 rounded-xl border border-slate-700 hidden sm:flex space-x-1 text-[10px] font-bold">
             <button
@@ -526,7 +1099,7 @@ export default function MasterVisualBuilder({
                 applyScope === 'global' ? 'bg-emerald-500 text-white shadow-xs' : 'text-slate-400 hover:text-white'
               }`}
             >
-              🌐 Aplicar Globalmente
+              🌐 Global
             </button>
             <button
               onClick={() => setApplyScope('page')}
@@ -534,7 +1107,7 @@ export default function MasterVisualBuilder({
                 applyScope === 'page' ? 'bg-sky-500 text-white shadow-xs' : 'text-slate-400 hover:text-white'
               }`}
             >
-              📄 Somente nesta página
+              📄 Esta página
             </button>
           </div>
 
@@ -544,7 +1117,7 @@ export default function MasterVisualBuilder({
             className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs px-3 py-2 rounded-xl flex items-center space-x-1.5 transition-all cursor-pointer"
           >
             <Save className="h-3.5 w-3.5 text-amber-400" />
-            <span>Rascunho</span>
+            <span>Salvar Rascunho</span>
           </button>
 
           <button
@@ -574,66 +1147,433 @@ export default function MasterVisualBuilder({
         {/* LEFT PANEL: NAVIGATION, THEMES, COMPONENT LIBRARY & PAGES */}
         <aside className="w-full md:w-80 bg-slate-900/90 border-r border-slate-800 flex flex-col shrink-0">
           
-          {/* Sub-tabs */}
-          <div className="grid grid-cols-5 p-2 bg-slate-950 border-b border-slate-800 text-[10px] font-bold text-slate-400">
+          {/* Sub-tabs per PROMPT 01 & PROMPT 04 */}
+          <div className="grid grid-cols-4 sm:grid-cols-8 p-1 bg-slate-950 border-b border-slate-800 text-[9px] font-bold text-slate-400 gap-0.5">
             <button
-              onClick={() => setActiveSubTab('themes')}
-              className={`py-2 rounded-lg flex flex-col items-center justify-center space-y-1 transition-colors ${
-                activeSubTab === 'themes' ? 'bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30' : 'hover:bg-slate-800 hover:text-white'
+              onClick={() => { setActiveSubTab('dashboard'); setSelectedPageId('page-dashboard'); }}
+              className={`py-2 rounded-lg flex flex-col items-center justify-center space-y-0.5 transition-colors ${
+                activeSubTab === 'dashboard' ? 'bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30' : 'hover:bg-slate-800 hover:text-white'
               }`}
-              title="Temas e Cores Globais"
+              title="Dashboard Builder"
             >
-              <Palette className="h-4 w-4" />
-              <span>Tema</span>
+              <Layout className="h-3.5 w-3.5" />
+              <span className="truncate w-full text-center">Dash</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSubTab('ai_designer')}
+              className={`py-2 rounded-lg flex flex-col items-center justify-center space-y-0.5 transition-all ${
+                activeSubTab === 'ai_designer' ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md shadow-amber-500/20' : 'text-amber-400 hover:bg-slate-800 hover:text-amber-300'
+              }`}
+              title="IA Designer - Assistente Master No-Code"
+            >
+              <Bot className="h-3.5 w-3.5 animate-pulse" />
+              <span className="truncate w-full text-center">IA Master</span>
             </button>
 
             <button
               onClick={() => setActiveSubTab('pages')}
-              className={`py-2 rounded-lg flex flex-col items-center justify-center space-y-1 transition-colors ${
+              className={`py-2 rounded-lg flex flex-col items-center justify-center space-y-0.5 transition-colors ${
                 activeSubTab === 'pages' ? 'bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30' : 'hover:bg-slate-800 hover:text-white'
               }`}
-              title="Gestão de Menus e Páginas"
+              title="Gestão de Páginas"
             >
-              <Menu className="h-4 w-4" />
-              <span>Páginas</span>
+              <FileText className="h-3.5 w-3.5" />
+              <span className="truncate w-full text-center">Páginas</span>
             </button>
 
             <button
               onClick={() => setActiveSubTab('library')}
-              className={`py-2 rounded-lg flex flex-col items-center justify-center space-y-1 transition-colors ${
+              className={`py-2 rounded-lg flex flex-col items-center justify-center space-y-0.5 transition-colors ${
                 activeSubTab === 'library' ? 'bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30' : 'hover:bg-slate-800 hover:text-white'
               }`}
               title="Biblioteca de Componentes"
             >
-              <Grid className="h-4 w-4" />
-              <span>Widgets</span>
+              <Grid className="h-3.5 w-3.5" />
+              <span className="truncate w-full text-center">Comp.</span>
             </button>
 
             <button
-              onClick={() => setActiveSubTab('history')}
-              className={`py-2 rounded-lg flex flex-col items-center justify-center space-y-1 transition-colors ${
-                activeSubTab === 'history' ? 'bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30' : 'hover:bg-slate-800 hover:text-white'
+              onClick={() => setActiveSubTab('themes')}
+              className={`py-2 rounded-lg flex flex-col items-center justify-center space-y-0.5 transition-colors ${
+                activeSubTab === 'themes' ? 'bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30' : 'hover:bg-slate-800 hover:text-white'
               }`}
-              title="Histórico de Versões"
+              title="Temas e Cores Globais"
             >
-              <History className="h-4 w-4" />
-              <span>Histórico</span>
+              <Palette className="h-3.5 w-3.5" />
+              <span className="truncate w-full text-center">Temas</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSubTab('menus')}
+              className={`py-2 rounded-lg flex flex-col items-center justify-center space-y-0.5 transition-colors ${
+                activeSubTab === 'menus' ? 'bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30' : 'hover:bg-slate-800 hover:text-white'
+              }`}
+              title="Estrutura de Menus"
+            >
+              <Menu className="h-3.5 w-3.5" />
+              <span className="truncate w-full text-center">Menus</span>
             </button>
 
             <button
               onClick={() => setActiveSubTab('white_label')}
-              className={`py-2 rounded-lg flex flex-col items-center justify-center space-y-1 transition-colors ${
+              className={`py-2 rounded-lg flex flex-col items-center justify-center space-y-0.5 transition-colors ${
                 activeSubTab === 'white_label' ? 'bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30' : 'hover:bg-slate-800 hover:text-white'
               }`}
-              title="Personalização por Empresa Cliente"
+              title="Modelos por Cliente"
             >
-              <Building2 className="h-4 w-4" />
-              <span>Empresa</span>
+              <Building2 className="h-3.5 w-3.5" />
+              <span className="truncate w-full text-center">Modelos</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSubTab('history')}
+              className={`py-2 rounded-lg flex flex-col items-center justify-center space-y-0.5 transition-colors ${
+                activeSubTab === 'history' ? 'bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30' : 'hover:bg-slate-800 hover:text-white'
+              }`}
+              title="Histórico de Alterações"
+            >
+              <History className="h-3.5 w-3.5" />
+              <span className="truncate w-full text-center">Histórico</span>
             </button>
           </div>
 
           <div className="flex-1 p-4 overflow-y-auto space-y-6">
             
+            {/* SUB-TAB 0: IA DESIGNER (MASTER AI) */}
+            {activeSubTab === 'ai_designer' && (
+              <div className="space-y-4">
+                <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-slate-900 p-3 rounded-2xl border border-amber-500/30">
+                  <div className="flex items-center space-x-2 mb-1">
+                    <Bot className="h-4 w-4 text-amber-400 animate-pulse shrink-0" />
+                    <h3 className="text-xs font-extrabold text-amber-400 uppercase tracking-wider">🤖 IA DESIGNER (MASTER AI)</h3>
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    Descreva o que deseja alterar e a IA gerará layouts, componentes, temas e páginas automaticamente.
+                  </p>
+                  <div className="flex items-center space-x-2 mt-2 pt-2 border-t border-amber-500/20 text-[10px] font-mono text-amber-300/80">
+                    <ShieldCheck className="h-3 w-3 text-emerald-400" />
+                    <span>Nível de Acesso: {currentUserRole}</span>
+                  </div>
+                </div>
+
+                {/* PROMPT INPUT AREA */}
+                <div className="space-y-2 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                  <label className="text-xs font-bold text-slate-200 block">
+                    Solicitação do Desenvolvedor:
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    placeholder="Descreva o que deseja alterar... (Ex: Crie um card de funcionários, mude a cor do menu para azul ou crie uma página de férias)"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 resize-none font-sans"
+                  />
+                  <button
+                    type="button"
+                    disabled={isAiGenerating || !aiPrompt.trim()}
+                    onClick={() => handleAiAnalyzeCommand()}
+                    className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50 text-slate-950 font-extrabold text-xs py-2.5 rounded-xl shadow-lg shadow-amber-500/20 border border-amber-300 flex items-center justify-center space-x-2 transition-all cursor-pointer"
+                  >
+                    {isAiGenerating ? (
+                      <>
+                        <Sparkles className="h-4 w-4 animate-spin text-slate-950" />
+                        <span>Analisando e Gerando Proposta...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="h-4 w-4 text-slate-950" />
+                        <span>Gerar Alteração</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* PREVIEW PROPOSAL / PROPOSTA DA IA */}
+                {currentAiProposal && (
+                  <div className={`p-3.5 rounded-xl border space-y-3 animate-in fade-in ${
+                    currentAiProposal.isBlocked
+                      ? 'bg-rose-950/40 border-rose-500/50 text-rose-200'
+                      : 'bg-slate-900 border-amber-500/40 text-slate-100'
+                  }`}>
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <div className="flex items-center space-x-2">
+                        {currentAiProposal.isBlocked ? (
+                          <AlertCircle className="h-4 w-4 text-rose-400 shrink-0" />
+                        ) : (
+                          <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
+                        )}
+                        <span className="text-xs font-extrabold uppercase tracking-wider text-amber-400">
+                          {currentAiProposal.isBlocked ? 'OPERAÇÃO BLOQUEADA' : 'PRÉVIA DE PROPOSTA DA IA'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-400">
+                        Página: {currentAiProposal.pageTitle}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h4 className="text-xs font-bold text-white mb-1">{currentAiProposal.summary}</h4>
+                      <p className="text-[11px] font-mono text-amber-300/90 bg-slate-950/80 p-2 rounded-lg border border-slate-800 italic">
+                        "{currentAiProposal.command}"
+                      </p>
+                    </div>
+
+                    {currentAiProposal.isBlocked ? (
+                      <div className="p-2.5 bg-rose-900/30 rounded-lg border border-rose-500/30 text-[11px] text-rose-300 font-medium">
+                        {currentAiProposal.blockedReason}
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Detalhes das Alterações:</span>
+                        <ul className="space-y-1">
+                          {currentAiProposal.changesDetails.map((detail, idx) => (
+                            <li key={idx} className="text-[11px] text-slate-300 flex items-start space-x-1.5">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                              <span>{detail}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* CONFIRMATION / APPROVAL ACTION BUTTONS */}
+                    <div className="flex items-center space-x-2 pt-2 border-t border-slate-800">
+                      {currentAiProposal.isBlocked ? (
+                        <button
+                          type="button"
+                          onClick={handleDiscardProposal}
+                          className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs py-2 rounded-lg transition-all cursor-pointer"
+                        >
+                          Entendi e Ciente
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleApproveProposal}
+                            className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs py-2 rounded-lg shadow-md shadow-emerald-500/20 flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                            <span>Aprovar & Aplicar</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDiscardProposal}
+                            className="px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs py-2 rounded-lg transition-all cursor-pointer"
+                          >
+                            Descartar
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* SUGESTÕES DE COMANDOS RÁPIDOS */}
+                <div className="space-y-3 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                  <span className="text-[10px] font-extrabold text-amber-400 uppercase tracking-wider block">
+                    ⚡ COMANDOS RÁPIDOS PRÉ-CONFIGURADOS
+                  </span>
+
+                  {/* Design */}
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block mb-1">🎨 Design & Estilo:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        'Deixe essa página mais moderna',
+                        'Altere o layout para estilo corporativo',
+                        'Organize melhor os cards',
+                        'Crie um dashboard mais limpo',
+                        'Ajuste para tema escuro'
+                      ].map((cmd) => (
+                        <button
+                          key={cmd}
+                          type="button"
+                          onClick={() => {
+                            setAiPrompt(cmd);
+                            handleAiAnalyzeCommand(cmd);
+                          }}
+                          className="text-[10px] bg-slate-900 hover:bg-amber-500/20 hover:text-amber-300 text-slate-300 border border-slate-700 rounded-lg px-2 py-1 text-left transition-colors cursor-pointer"
+                        >
+                          {cmd}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Componentes */}
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block mb-1">🧩 Componentes:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        'Adicionar um botão novo',
+                        'Criar um card de funcionários',
+                        'Adicionar uma tabela',
+                        'Criar um formulário',
+                        'Adicionar gráfico de admissões'
+                      ].map((cmd) => (
+                        <button
+                          key={cmd}
+                          type="button"
+                          onClick={() => {
+                            setAiPrompt(cmd);
+                            handleAiAnalyzeCommand(cmd);
+                          }}
+                          className="text-[10px] bg-slate-900 hover:bg-amber-500/20 hover:text-amber-300 text-slate-300 border border-slate-700 rounded-lg px-2 py-1 text-left transition-colors cursor-pointer"
+                        >
+                          {cmd}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Páginas */}
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block mb-1">📄 Novas Páginas:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        'Crie uma página de férias',
+                        'Crie uma página de benefícios',
+                        'Crie uma página de treinamentos',
+                        'Crie um módulo de avaliações'
+                      ].map((cmd) => (
+                        <button
+                          key={cmd}
+                          type="button"
+                          onClick={() => {
+                            setAiPrompt(cmd);
+                            handleAiAnalyzeCommand(cmd);
+                          }}
+                          className="text-[10px] bg-slate-900 hover:bg-amber-500/20 hover:text-amber-300 text-slate-300 border border-slate-700 rounded-lg px-2 py-1 text-left transition-colors cursor-pointer"
+                        >
+                          {cmd}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Modelos */}
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block mb-1">🏢 Modelos Automáticos:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        'Crie um modelo para uma empresa pequena',
+                        'Modelo para consultoria de RH'
+                      ].map((cmd) => (
+                        <button
+                          key={cmd}
+                          type="button"
+                          onClick={() => {
+                            setAiPrompt(cmd);
+                            handleAiAnalyzeCommand(cmd);
+                          }}
+                          className="text-[10px] bg-slate-900 hover:bg-amber-500/20 hover:text-amber-300 text-slate-300 border border-slate-700 rounded-lg px-2 py-1 text-left transition-colors cursor-pointer"
+                        >
+                          {cmd}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* HISTÓRICO DE COMANDOS DA IA */}
+                <div className="space-y-3 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <span className="text-[10px] font-extrabold text-amber-400 uppercase tracking-wider">
+                      📋 HISTÓRICO DE COMANDOS DA IA
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-500">
+                      Total: {aiLogsList.length}
+                    </span>
+                  </div>
+
+                  {aiLogsList.length === 0 ? (
+                    <p className="text-[11px] text-slate-500 text-center py-4 font-medium">
+                      Nenhum comando executado na sessão atual.
+                    </p>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {aiLogsList.map((log) => (
+                        <div key={log.id} className="p-2 bg-slate-900 rounded-lg border border-slate-800 text-[11px] space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-white truncate max-w-[180px]">{log.summary}</span>
+                            <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase ${
+                              log.status === 'applied' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                              log.status === 'blocked' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
+                              'bg-slate-800 text-slate-400'
+                            }`}>
+                              {log.status === 'applied' ? 'Aplicado' : log.status === 'blocked' ? 'Bloqueado' : 'Descartado'}
+                            </span>
+                          </div>
+                          <p className="text-slate-400 font-mono text-[10px]">"{log.command}"</p>
+                          <div className="flex items-center justify-between text-[9px] text-slate-500 pt-1 border-t border-slate-800/80">
+                            <span>Usuário: {log.user}</span>
+                            <span>{new Date(log.timestamp).toLocaleTimeString('pt-BR').slice(0, 5)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* SUB-TAB 0: DASHBOARD BUILDER */}
+            {activeSubTab === 'dashboard' && (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-xs font-extrabold text-amber-400 uppercase tracking-wider mb-1">DASHBOARD BUILDER</h3>
+                  <p className="text-[11px] text-slate-400">Monte o Dashboard principal arranjando KPIs, gráficos e comunicados.</p>
+                </div>
+
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-3">
+                  <span className="text-xs font-bold text-slate-200 block">Página Ativa: Dashboard Executivo</span>
+                  <button
+                    onClick={() => setSelectedPageId('page-dashboard')}
+                    className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs py-2 rounded-xl transition-all shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+                  >
+                    <Layout className="h-4 w-4" />
+                    <span>Editar Blocos do Dashboard</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <span className="text-xs font-bold text-slate-300 block">Atalhos de Inserção Rápida:</span>
+                  <div className="grid grid-cols-1 gap-2">
+                    <button
+                      onClick={() => handleAddBlockToPage('kpi', 'Card KPI de Métrica RH')}
+                      className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-center space-x-2 text-xs font-bold text-slate-200 transition-all cursor-pointer"
+                    >
+                      <BarChart3 className="h-4 w-4 text-emerald-400" />
+                      <span>+ Adicionar Card de Métrica / KPI</span>
+                    </button>
+                    <button
+                      onClick={() => handleAddBlockToPage('chart', 'Gráfico de Desempenho / Headcount')}
+                      className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-center space-x-2 text-xs font-bold text-slate-200 transition-all cursor-pointer"
+                    >
+                      <BarChart3 className="h-4 w-4 text-sky-400" />
+                      <span>+ Adicionar Gráfico Analytics</span>
+                    </button>
+                    <button
+                      onClick={() => handleAddBlockToPage('banner', 'Banner de Comunicado Oficial')}
+                      className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-center space-x-2 text-xs font-bold text-slate-200 transition-all cursor-pointer"
+                    >
+                      <Sparkles className="h-4 w-4 text-amber-400" />
+                      <span>+ Adicionar Banner Comunicado</span>
+                    </button>
+                    <button
+                      onClick={() => handleAddBlockToPage('table', 'Tabela de Dados / Aniversariantes')}
+                      className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-center space-x-2 text-xs font-bold text-slate-200 transition-all cursor-pointer"
+                    >
+                      <Grid className="h-4 w-4 text-purple-400" />
+                      <span>+ Adicionar Tabela de Registros</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* SUB-TAB 1: GLOBAL THEME & DESIGN SYSTEM */}
             {activeSubTab === 'themes' && (
               <div className="space-y-5">
@@ -850,35 +1790,198 @@ export default function MasterVisualBuilder({
                   <p className="text-[11px] text-slate-400">Clique para inserir o bloco na página atual.</p>
                 </div>
 
-                <div className="grid grid-cols-1 gap-2 max-h-[60vh] overflow-y-auto pr-1">
-                  {[
-                    { type: 'kpi', title: 'Card Métrica / KPI', icon: BarChart3, desc: 'Indicador numérico com status' },
-                    { type: 'card', title: 'Card de Conteúdo', icon: Grid, desc: 'Container com título e texto' },
-                    { type: 'table', title: 'Tabela de Dados', icon: Grid, desc: 'Listagem de registros com ação' },
-                    { type: 'chart', title: 'Gráfico Analytics', icon: BarChart3, desc: 'Gráficos de barras e pizza' },
-                    { type: 'calendar', title: 'Calendário / Escalas', icon: Calendar, desc: 'Escalas e compromissos' },
-                    { type: 'kanban', title: 'Quadro Kanban ATS', icon: Layers, desc: 'Fluxo de etapas com drag' },
-                    { type: 'banner', title: 'Banner Comunicado', icon: Sparkles, desc: 'Banner oficial em destaque' },
-                    { type: 'form', title: 'Formulário Completo', icon: FileText, desc: 'Campos de entrada e cadastro' },
-                    { type: 'input', title: 'Campo de Texto / Input', icon: MousePointer, desc: 'Entrada individual de dados' },
-                    { type: 'button', title: 'Botão de Ação Rápida', icon: MousePointer, desc: 'Gatilho personalizável' },
-                    { type: 'timeline', title: 'Linha do Tempo', icon: Clock, desc: 'Histórico e passos sequenciais' },
-                    { type: 'upload', title: 'Envio de Documento', icon: Upload, desc: 'Upload com drag and drop' },
-                    { type: 'widget_ia', title: 'Widget IA Assistente', icon: Sparkles, desc: 'Módulo de automação com IA' }
-                  ].map(item => (
-                    <button
-                      key={item.type}
-                      onClick={() => handleAddBlockToPage(item.type as any, item.title)}
-                      className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-start space-x-3 text-left transition-all cursor-pointer group hover:border-amber-500/50"
-                    >
-                      <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg group-hover:bg-amber-500 group-hover:text-slate-950 transition-colors">
-                        <item.icon className="h-4 w-4" />
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                  {/* BÁSICOS */}
+                  <div>
+                    <span className="text-[10px] font-extrabold text-amber-300 uppercase tracking-wider block mb-1.5 px-1 bg-amber-500/10 py-1 rounded">
+                      1. COMPONENTES BÁSICOS
+                    </span>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {[
+                        { type: 'text', title: 'Texto / Título', icon: Type, desc: 'Títulos e parágrafos personalizáveis' },
+                        { type: 'button', title: 'Botão de Ação', icon: MousePointer, desc: 'Gatilho personalizável de link/ação' },
+                        { type: 'image', title: 'Imagem / Mídia', icon: Globe, desc: 'Banner de imagem ou logotipo' },
+                        { type: 'divisor', title: 'Separador / Divisor', icon: Square, desc: 'Linha de divisão estética' },
+                        { type: 'card', title: 'Container / Card', icon: Grid, desc: 'Caixa de agrupamento de conteúdo' },
+                        { type: 'banner', title: 'Banner Comunicado', icon: Sparkles, desc: 'Banner oficial de comunicados' }
+                      ].map(item => (
+                        <button
+                          key={item.type}
+                          onClick={() => handleAddBlockToPage(item.type as any, item.title)}
+                          className="p-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-start space-x-2.5 text-left transition-all cursor-pointer group hover:border-amber-500/50"
+                        >
+                          <div className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg group-hover:bg-amber-500 group-hover:text-slate-950 transition-colors shrink-0">
+                            <item.icon className="h-3.5 w-3.5" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-xs text-white block">{item.title}</span>
+                            <span className="text-[10px] text-slate-400 block">{item.desc}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* DADOS */}
+                  <div>
+                    <span className="text-[10px] font-extrabold text-sky-300 uppercase tracking-wider block mb-1.5 px-1 bg-sky-500/10 py-1 rounded">
+                      2. COMPONENTES DE DADOS
+                    </span>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {[
+                        { type: 'table', title: 'Tabela de Dados', icon: Grid, desc: 'Listagem interativa de registros' },
+                        { type: 'list', title: 'Lista de Itens', icon: FileText, desc: 'Feed vertical de informações' },
+                        { type: 'form', title: 'Formulário Completo', icon: FileText, desc: 'Campos de entrada e cadastro' },
+                        { type: 'input', title: 'Campo de Texto / Input', icon: MousePointer, desc: 'Entrada individual de dados' },
+                        { type: 'select', title: 'Filtro / Pesquisa', icon: Sliders, desc: 'Barra de busca e filtros' }
+                      ].map(item => (
+                        <button
+                          key={item.type}
+                          onClick={() => handleAddBlockToPage(item.type as any, item.title)}
+                          className="p-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-start space-x-2.5 text-left transition-all cursor-pointer group hover:border-sky-500/50"
+                        >
+                          <div className="p-1.5 bg-sky-500/10 text-sky-400 rounded-lg group-hover:bg-sky-500 group-hover:text-slate-950 transition-colors shrink-0">
+                            <item.icon className="h-3.5 w-3.5" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-xs text-white block">{item.title}</span>
+                            <span className="text-[10px] text-slate-400 block">{item.desc}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* DASHBOARD */}
+                  <div>
+                    <span className="text-[10px] font-extrabold text-emerald-300 uppercase tracking-wider block mb-1.5 px-1 bg-emerald-500/10 py-1 rounded">
+                      3. DASHBOARD & ANALYTICS
+                    </span>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {[
+                        { type: 'kpi', title: 'Card Métrica / KPI', icon: BarChart3, desc: 'Indicador numérico com status' },
+                        { type: 'chart', title: 'Gráfico Analytics', icon: BarChart3, desc: 'Gráficos de barras e pizza' },
+                        { type: 'calendar', title: 'Calendário / Escalas', icon: Calendar, desc: 'Escalas e compromissos' },
+                        { type: 'kanban', title: 'Quadro Kanban ATS', icon: Layers, desc: 'Fluxo de etapas com drag' },
+                        { type: 'timeline', title: 'Linha do Tempo', icon: Clock, desc: 'Histórico e passos sequenciais' },
+                        { type: 'upload', title: 'Envio de Documento', icon: Upload, desc: 'Upload com drag and drop' },
+                        { type: 'widget_ia', title: 'Widget IA Assistente', icon: Sparkles, desc: 'Módulo de automação com IA' }
+                      ].map(item => (
+                        <button
+                          key={item.type}
+                          onClick={() => handleAddBlockToPage(item.type as any, item.title)}
+                          className="p-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-start space-x-2.5 text-left transition-all cursor-pointer group hover:border-emerald-500/50"
+                        >
+                          <div className="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg group-hover:bg-emerald-500 group-hover:text-slate-950 transition-colors shrink-0">
+                            <item.icon className="h-3.5 w-3.5" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-xs text-white block">{item.title}</span>
+                            <span className="text-[10px] text-slate-400 block">{item.desc}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            {/* SUB-TAB 3.5: MENUS */}
+            {activeSubTab === 'menus' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-extrabold text-amber-400 uppercase tracking-wider mb-1">ESTRUTURA DE MENUS</h3>
+                    <p className="text-[11px] text-slate-400">Personalize nomes, ordem e visibilidade dos menus.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsNewPageModalOpen(true)}
+                    className="p-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] rounded-lg transition-all flex items-center space-x-1 cursor-pointer"
+                  >
+                    <Plus className="h-3 w-3" />
+                    <span>+ Menu</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-1">
+                  {config.customPages.map((page, index) => (
+                    <div key={page.id} className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center space-x-2 overflow-hidden flex-1">
+                          <Menu className="h-4 w-4 text-amber-400 shrink-0" />
+                          <input
+                            type="text"
+                            value={page.title}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const updatedPages = config.customPages.map(p => p.id === page.id ? { ...p, title: val } : p);
+                              setConfig(prev => ({ ...prev, customPages: updatedPages }));
+                              setHasUnsavedChanges(true);
+                            }}
+                            className="bg-slate-900 border border-slate-700 text-xs font-bold text-white rounded px-2 py-1 w-full"
+                          />
+                        </div>
+
+                        <div className="flex items-center space-x-1 shrink-0">
+                          <button
+                            type="button"
+                            disabled={index === 0}
+                            onClick={() => {
+                              if (index === 0) return;
+                              const updated = [...config.customPages];
+                              const temp = updated[index - 1];
+                              updated[index - 1] = updated[index];
+                              updated[index] = temp;
+                              setConfig(prev => ({ ...prev, customPages: updated }));
+                              setHasUnsavedChanges(true);
+                            }}
+                            className="p-1 bg-slate-900 hover:bg-slate-800 disabled:opacity-30 text-slate-300 rounded border border-slate-700 text-xs cursor-pointer"
+                            title="Mover para cima"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            disabled={index === config.customPages.length - 1}
+                            onClick={() => {
+                              if (index === config.customPages.length - 1) return;
+                              const updated = [...config.customPages];
+                              const temp = updated[index + 1];
+                              updated[index + 1] = updated[index];
+                              updated[index] = temp;
+                              setConfig(prev => ({ ...prev, customPages: updated }));
+                              setHasUnsavedChanges(true);
+                            }}
+                            className="p-1 bg-slate-900 hover:bg-slate-800 disabled:opacity-30 text-slate-300 rounded border border-slate-700 text-xs cursor-pointer"
+                            title="Mover para baixo"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updatedPages = config.customPages.map(p => p.id === page.id ? { ...p, visible: !p.visible } : p);
+                              setConfig(prev => ({ ...prev, customPages: updatedPages }));
+                              setHasUnsavedChanges(true);
+                            }}
+                            className={`p-1.5 rounded-lg border text-xs cursor-pointer ${
+                              page.visible ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                            }`}
+                            title={page.visible ? 'Menu Visível' : 'Menu Oculto'}
+                          >
+                            {page.visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
                       </div>
-                      <div>
-                        <span className="font-bold text-xs text-white block">{item.title}</span>
-                        <span className="text-[10px] text-slate-400">{item.desc}</span>
+
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-900">
+                        <span>Rota: /{page.slug}</span>
+                        <span>Blocos: {page.blocks.length}</span>
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -919,36 +2022,534 @@ export default function MasterVisualBuilder({
               </div>
             )}
 
-            {/* SUB-TAB 5: WHITE-LABEL PER COMPANY */}
-            {activeSubTab === 'white_label' && (
-              <div className="space-y-4">
+            {/* SUB-TAB 5: MODELOS PERSONALIZADOS POR CLIENTE (PROMPT 05) */}
+            {activeSubTab === 'white_label' && editingModel && (
+              <div className="space-y-4 animate-in fade-in">
                 <div>
-                  <h3 className="text-xs font-extrabold text-amber-400 uppercase tracking-wider">PERSONALIZAÇÃO POR CLIENTE</h3>
-                  <p className="text-[11px] text-slate-400">Defina regras visuais exclusivas por empresa.</p>
+                  <div className="flex items-center space-x-2">
+                    <Building2 className="h-4 w-4 text-amber-400 shrink-0" />
+                    <h3 className="text-xs font-extrabold text-amber-400 uppercase tracking-wider">
+                      MODELOS POR CLIENTE (MULTIEMPRESA)
+                    </h3>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Crie e gerencie versões personalizadas do GestRH para cada empresa sem alterar o código.
+                  </p>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-200 block">Selecione a Empresa Cliente:</label>
-                  <select
-                    value={selectedCompanyId}
-                    onChange={(e) => setSelectedCompanyId(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 text-xs text-white rounded-xl p-2.5 font-bold"
+                {/* SELECTOR & ACTION BAR */}
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-3">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                      Modelo do Cliente Selecionado:
+                    </label>
+                    <select
+                      value={selectedModelId}
+                      onChange={(e) => handleSelectClientModel(e.target.value)}
+                      className="w-full bg-slate-900 border border-amber-500/40 text-xs font-bold text-amber-300 rounded-xl p-2.5 focus:ring-1 focus:ring-amber-500"
+                    >
+                      {clientModelsList.map(m => (
+                        <option key={m.id} value={m.id}>
+                          🏢 {m.modelName} — {m.companyName} ({m.planTier.toUpperCase()})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* BUTTON ACTIONS */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={handleSaveClientModel}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white p-2 rounded-lg flex items-center justify-center space-x-1 transition-all cursor-pointer shadow-md shadow-emerald-600/20"
+                    >
+                      <Save className="h-3.5 w-3.5" />
+                      <span>Salvar Modelo</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleApplyClientModelToGlobal}
+                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold p-2 rounded-lg flex items-center justify-center space-x-1 transition-all cursor-pointer shadow-md shadow-amber-500/20"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      <span>Aplicar ao Sistema</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCreateNewClientModel}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 p-2 rounded-lg flex items-center justify-center space-x-1 transition-all cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5 text-amber-400" />
+                      <span>Novo Modelo</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDuplicateClientModel}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 p-2 rounded-lg flex items-center justify-center space-x-1 transition-all cursor-pointer"
+                    >
+                      <Copy className="h-3.5 w-3.5 text-blue-400" />
+                      <span>Duplicar</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleRestoreClientModel}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 p-2 rounded-lg flex items-center justify-center space-x-1 transition-all cursor-pointer"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 text-amber-400" />
+                      <span>Restaurar</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDeleteClientModel}
+                      className="bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/80 p-2 rounded-lg flex items-center justify-center space-x-1 transition-all cursor-pointer"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>Excluir</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* EDITOR SUB-SECTIONS NAV */}
+                <div className="flex items-center space-x-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-[10px] font-bold overflow-x-auto">
+                  <button
+                    type="button"
+                    onClick={() => setActiveModelSection('identidade')}
+                    className={`px-2.5 py-1.5 rounded-lg shrink-0 transition-colors ${
+                      activeModelSection === 'identidade' ? 'bg-amber-500 text-slate-950 font-extrabold' : 'text-slate-400 hover:text-white'
+                    }`}
                   >
-                    <option value="">-- Padrão Global da Plataforma --</option>
-                    {companies.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} (CNPJ: {c.cnpj || 'Inativo'})</option>
-                    ))}
-                  </select>
+                    🎨 Identidade
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveModelSection('modulos')}
+                    className={`px-2.5 py-1.5 rounded-lg shrink-0 transition-colors ${
+                      activeModelSection === 'modulos' ? 'bg-amber-500 text-slate-950 font-extrabold' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    🧩 Módulos Ativos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveModelSection('campos')}
+                    className={`px-2.5 py-1.5 rounded-lg shrink-0 transition-colors ${
+                      activeModelSection === 'campos' ? 'bg-amber-500 text-slate-950 font-extrabold' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    ➕ Campos Custom
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveModelSection('plano')}
+                    className={`px-2.5 py-1.5 rounded-lg shrink-0 transition-colors ${
+                      activeModelSection === 'plano' ? 'bg-amber-500 text-slate-950 font-extrabold' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    💳 Plano
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveModelSection('menus')}
+                    className={`px-2.5 py-1.5 rounded-lg shrink-0 transition-colors ${
+                      activeModelSection === 'menus' ? 'bg-amber-500 text-slate-950 font-extrabold' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    📋 Menus
+                  </button>
                 </div>
 
-                {selectedCompanyId && (
-                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-2 text-xs">
-                    <span className="font-bold text-emerald-300 block">Empresa Selecionada</span>
-                    <p className="text-[11px] text-slate-300">
-                      As edições realizadas no Construtor Visual serão aplicadas com prioridade para este cliente especificamente, mantendo o logo e paleta personalizados.
+                {/* SECTION 1: IDENTIDADE VISUAL */}
+                {activeModelSection === 'identidade' && (
+                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-3 text-xs">
+                    <div>
+                      <label className="font-bold text-slate-300 block mb-1">Nome do Modelo:</label>
+                      <input
+                        type="text"
+                        value={editingModel.modelName}
+                        onChange={(e) => setEditingModel({ ...editingModel, modelName: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg p-2 font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-300 block mb-1">Nome da Empresa Cliente:</label>
+                      <input
+                        type="text"
+                        value={editingModel.companyName}
+                        onChange={(e) => setEditingModel({ ...editingModel, companyName: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg p-2"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-300 block mb-1">Nome Exibido do Sistema:</label>
+                      <input
+                        type="text"
+                        value={editingModel.branding.systemName}
+                        onChange={(e) => setEditingModel({
+                          ...editingModel,
+                          branding: { ...editingModel.branding, systemName: e.target.value }
+                        })}
+                        className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg p-2"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="font-bold text-slate-300 block mb-1">Cor Primária:</label>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="color"
+                            value={editingModel.branding.primaryColor}
+                            onChange={(e) => setEditingModel({
+                              ...editingModel,
+                              branding: { ...editingModel.branding, primaryColor: e.target.value }
+                            })}
+                            className="h-8 w-10 bg-transparent rounded cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={editingModel.branding.primaryColor}
+                            onChange={(e) => setEditingModel({
+                              ...editingModel,
+                              branding: { ...editingModel.branding, primaryColor: e.target.value }
+                            })}
+                            className="w-full bg-slate-900 border border-slate-700 text-white rounded p-1.5 font-mono text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="font-bold text-slate-300 block mb-1">Cor Secundária:</label>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="color"
+                            value={editingModel.branding.secondaryColor}
+                            onChange={(e) => setEditingModel({
+                              ...editingModel,
+                              branding: { ...editingModel.branding, secondaryColor: e.target.value }
+                            })}
+                            className="h-8 w-10 bg-transparent rounded cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={editingModel.branding.secondaryColor}
+                            onChange={(e) => setEditingModel({
+                              ...editingModel,
+                              branding: { ...editingModel.branding, secondaryColor: e.target.value }
+                            })}
+                            className="w-full bg-slate-900 border border-slate-700 text-white rounded p-1.5 font-mono text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="font-bold text-slate-300 block mb-1">Tema Inicial:</label>
+                        <select
+                          value={editingModel.branding.themeMode}
+                          onChange={(e: any) => setEditingModel({
+                            ...editingModel,
+                            branding: { ...editingModel.branding, themeMode: e.target.value }
+                          })}
+                          className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg p-2 font-bold"
+                        >
+                          <option value="dark">Escuro (Dark Mode)</option>
+                          <option value="light">Claro (Light Mode)</option>
+                          <option value="auto">Automático</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="font-bold text-slate-300 block mb-1">Tipografia:</label>
+                        <select
+                          value={editingModel.branding.fontFamily}
+                          onChange={(e) => setEditingModel({
+                            ...editingModel,
+                            branding: { ...editingModel.branding, fontFamily: e.target.value }
+                          })}
+                          className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg p-2 font-bold"
+                        >
+                          <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
+                          <option value="Inter">Inter</option>
+                          <option value="Playfair Display">Playfair Display</option>
+                          <option value="Roboto">Roboto</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SECTION 2: MÓDULOS ATIVOS */}
+                {activeModelSection === 'modulos' && (
+                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-3 text-xs">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <span className="font-bold text-white uppercase text-[11px]">Ativação de Módulos por Empresa:</span>
+                      <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+                        {Object.values(editingModel.activeModules).filter(Boolean).length} / {Object.keys(editingModel.activeModules).length} Ativos
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {[
+                        { key: 'funcionarios', label: 'Funcionários & Cadastro' },
+                        { key: 'ponto', label: 'Ponto Eletrônico & Registros' },
+                        { key: 'recrutamento', label: 'Recrutamento & Seleção (ATS)' },
+                        { key: 'bancoTalentos', label: 'Banco de Talentos' },
+                        { key: 'entrevistaIa', label: 'Entrevista IA & Triagem' },
+                        { key: 'documentos', label: 'Documentos & Dossiê' },
+                        { key: 'ferias', label: 'Férias & Licenças' },
+                        { key: 'beneficios', label: 'Benefícios & Vales' },
+                        { key: 'treinamentos', label: 'Treinamentos & LNT' },
+                        { key: 'folha', label: 'Folha de Pagamento' },
+                        { key: 'relatorios', label: 'Relatórios & Analytics' },
+                        { key: 'chatIa', label: 'Assistente IA Chat' }
+                      ].map((mod) => {
+                        const isActive = (editingModel.activeModules as any)[mod.key];
+                        return (
+                          <button
+                            key={mod.key}
+                            type="button"
+                            onClick={() => {
+                              setEditingModel({
+                                ...editingModel,
+                                activeModules: {
+                                  ...editingModel.activeModules,
+                                  [mod.key]: !isActive
+                                }
+                              });
+                            }}
+                            className={`p-2.5 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                              isActive
+                                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-200'
+                                : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700'
+                            }`}
+                          >
+                            <span className="font-bold">{mod.label}</span>
+                            <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
+                              isActive ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              {isActive ? '✓ ATIVO' : '✗ OCULTO'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* SECTION 3: CAMPOS PERSONALIZADOS */}
+                {activeModelSection === 'campos' && (
+                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-4 text-xs">
+                    <div>
+                      <h4 className="font-extrabold text-amber-400 uppercase text-[11px] mb-1">
+                        CAMPOS PERSONALIZADOS DO CLIENTE
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Adicione novos campos exclusivos para esta empresa (ex: Frota, Centro de Custo, Escala).
+                      </p>
+                    </div>
+
+                    {/* LIST OF EXISTING CUSTOM FIELDS */}
+                    <div className="space-y-2">
+                      <span className="font-bold text-slate-300 block text-[11px]">Campos Configurados ({editingModel.customFields?.length || 0}):</span>
+                      {(!editingModel.customFields || editingModel.customFields.length === 0) ? (
+                        <p className="text-[11px] text-slate-500 italic p-3 bg-slate-900 rounded-lg text-center">
+                          Nenhum campo personalizado adicionado a este modelo ainda.
+                        </p>
+                      ) : (
+                        editingModel.customFields.map((cf) => (
+                          <div key={cf.id} className="p-2.5 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between">
+                            <div>
+                              <div className="flex items-center space-x-2">
+                                <span className="font-extrabold text-white">{cf.label}</span>
+                                <span className="text-[9px] font-mono bg-slate-800 text-amber-300 px-1.5 py-0.5 rounded">
+                                  {cf.fieldName}
+                                </span>
+                                {cf.required && (
+                                  <span className="text-[9px] font-bold text-rose-400 bg-rose-500/10 px-1 rounded">Obrigatório</span>
+                                )}
+                              </div>
+                              <div className="flex items-center space-x-3 text-[10px] text-slate-400 mt-0.5">
+                                <span>Módulo: <strong className="text-slate-200">{cf.targetModule}</strong></span>
+                                <span>Tipo: <strong className="text-slate-200">{cf.fieldType}</strong></span>
+                                {cf.options && cf.options.length > 0 && (
+                                  <span>Opções: {cf.options.join(', ')}</span>
+                                )}
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveCustomField(cf.id)}
+                              className="p-1.5 bg-rose-950/60 hover:bg-rose-900 text-rose-300 rounded-lg border border-rose-800 cursor-pointer"
+                              title="Remover Campo"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* FORM TO ADD NEW CUSTOM FIELD */}
+                    <div className="p-3 bg-slate-900/90 rounded-xl border border-amber-500/30 space-y-3">
+                      <span className="font-extrabold text-amber-400 text-[11px] block">
+                        + Adicionar Novo Campo Personalizado:
+                      </span>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-300 block mb-1">Nome do Rótulo (Label):</label>
+                          <input
+                            type="text"
+                            placeholder="Ex: Número da Frota"
+                            value={newCfLabel}
+                            onChange={(e) => setNewCfLabel(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg p-2 text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-300 block mb-1">Chave Interna (fieldName):</label>
+                          <input
+                            type="text"
+                            placeholder="Ex: numero_frota"
+                            value={newCfFieldName}
+                            onChange={(e) => setNewCfFieldName(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg p-2 text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-300 block mb-1">Módulo de Destino:</label>
+                          <select
+                            value={newCfModule}
+                            onChange={(e: any) => setNewCfModule(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg p-2 text-xs font-bold"
+                          >
+                            <option value="funcionarios">Funcionários</option>
+                            <option value="recrutamento">Recrutamento</option>
+                            <option value="ponto">Ponto Eletrônico</option>
+                            <option value="folha">Folha de Pagamento</option>
+                            <option value="ferias">Férias</option>
+                            <option value="beneficios">Benefícios</option>
+                            <option value="geral">Geral</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-300 block mb-1">Tipo de Campo:</label>
+                          <select
+                            value={newCfType}
+                            onChange={(e: any) => setNewCfType(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg p-2 text-xs font-bold"
+                          >
+                            <option value="text">Texto Curto</option>
+                            <option value="number">Número</option>
+                            <option value="date">Data</option>
+                            <option value="select">Seleção (Dropdown)</option>
+                            <option value="boolean">Sim / Não (Checkbox)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {newCfType === 'select' && (
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-300 block mb-1">Opções (separadas por vírgula):</label>
+                          <input
+                            type="text"
+                            placeholder="Ex: Operacional, Logística, Administrativo"
+                            value={newCfOptions}
+                            onChange={(e) => setNewCfOptions(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg p-2 text-xs"
+                          />
+                        </div>
+                      )}
+
+                      <div className="flex items-center space-x-2 pt-1">
+                        <input
+                          type="checkbox"
+                          id="cf_req"
+                          checked={newCfRequired}
+                          onChange={(e) => setNewCfRequired(e.target.checked)}
+                          className="rounded border-slate-700 text-amber-500 focus:ring-amber-500 cursor-pointer"
+                        />
+                        <label htmlFor="cf_req" className="text-xs font-bold text-slate-200 cursor-pointer">
+                          Campo de Preenchimento Obrigatório
+                        </label>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleAddCustomField}
+                        disabled={!newCfLabel.trim()}
+                        className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-extrabold text-xs py-2 rounded-xl flex items-center justify-center space-x-1 transition-all cursor-pointer shadow-md shadow-amber-500/20"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>Adicionar Campo ao Modelo</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* SECTION 4: PLANO DE ASSINATURA */}
+                {activeModelSection === 'plano' && (
+                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-3 text-xs">
+                    <div>
+                      <h4 className="font-extrabold text-amber-400 uppercase text-[11px] mb-1">
+                        VÍNCULO DE PLANO DE ASSINATURA
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Selecione o nível do plano comercial vinculado a este modelo.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { tier: 'basico', label: 'Plano Básico', desc: 'Essencial de RH (Cadastros & Docs)' },
+                        { tier: 'profissional', label: 'Plano Profissional', desc: 'Avançado + Ponto + Recrutamento' },
+                        { tier: 'premium', label: 'Plano Premium', desc: 'IA Completa + Builder + Custom' }
+                      ].map((item) => {
+                        const isSelected = editingModel.planTier === item.tier;
+                        return (
+                          <button
+                            key={item.tier}
+                            type="button"
+                            onClick={() => setEditingModel({ ...editingModel, planTier: item.tier as any })}
+                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-amber-500/20 border-amber-500 text-amber-200 font-bold shadow-md shadow-amber-500/10'
+                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                            }`}
+                          >
+                            <span className="block font-extrabold text-white text-[11px] mb-1">{item.label}</span>
+                            <span className="text-[10px] text-slate-400">{item.desc}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* SECTION 5: MENUS */}
+                {activeModelSection === 'menus' && (
+                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-3 text-xs">
+                    <span className="font-bold text-white uppercase text-[11px] block">Personalização de Menus do Cliente:</span>
+                    <p className="text-[11px] text-slate-400">
+                      Os menus visíveis acompanham os módulos ativos configurados na aba Módulos.
                     </p>
                   </div>
                 )}
+
               </div>
             )}
 
@@ -1173,8 +2774,9 @@ export default function MasterVisualBuilder({
                         )}
 
                         {block.type === 'banner' && (
-                          <div className="pt-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs font-semibold">
-                            📢 Exemplo de comunicado oficial visível para todos os colaboradores no sistema.
+                          <div className="pt-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs font-semibold flex items-center space-x-2">
+                            <Sparkles className="h-4 w-4 text-amber-600 shrink-0" />
+                            <span>📢 Exemplo de comunicado oficial visível para todos os colaboradores no sistema.</span>
                           </div>
                         )}
 
@@ -1183,10 +2785,158 @@ export default function MasterVisualBuilder({
                             {[40, 65, 80, 50, 95, 70, 85].map((h, i) => (
                               <div
                                 key={i}
-                                className="w-full rounded-t-md transition-all"
+                                className="w-full rounded-t-md transition-all hover:opacity-80"
                                 style={{ height: `${h}%`, backgroundColor: config.primaryColor }}
                               />
                             ))}
+                          </div>
+                        )}
+
+                        {block.type === 'list' && (
+                          <div className="pt-2 space-y-2">
+                            {[
+                              { name: 'Ana Clara Souza', role: 'Dev Senior', status: 'Ativo' },
+                              { name: 'Lucas Pereira', role: 'Analista de RH', status: 'Férias' },
+                              { name: 'Mariana Lima', role: 'Designer UX', status: 'Ativo' }
+                            ].map((user, idx) => (
+                              <div key={idx} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
+                                <div className="flex items-center space-x-2">
+                                  <div className="h-7 w-7 rounded-full bg-slate-200 font-bold text-slate-700 flex items-center justify-center text-[10px]">
+                                    {user.name[0]}
+                                  </div>
+                                  <div>
+                                    <span className="font-bold text-slate-900 block leading-tight">{user.name}</span>
+                                    <span className="text-[10px] text-slate-500">{user.role}</span>
+                                  </div>
+                                </div>
+                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+                                  user.status === 'Ativo' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                                }`}>
+                                  {user.status}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {block.type === 'table' && (
+                          <div className="pt-2 overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead>
+                                <tr className="border-b border-slate-200 text-slate-500 text-[10px] uppercase font-mono">
+                                  <th className="py-1">Nome</th>
+                                  <th className="py-1">Cargo</th>
+                                  <th className="py-1">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 font-medium">
+                                <tr>
+                                  <td className="py-2 text-slate-900 font-bold">Carlos Eduardo</td>
+                                  <td className="py-2 text-slate-600">Engenheiro de Dados</td>
+                                  <td className="py-2 text-emerald-600 font-bold">Aprovado</td>
+                                </tr>
+                                <tr>
+                                  <td className="py-2 text-slate-900 font-bold">Juliana Ramos</td>
+                                  <td className="py-2 text-slate-600">Tech Lead Java</td>
+                                  <td className="py-2 text-amber-600 font-bold">Em Entrevista</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
+                        {block.type === 'form' && (
+                          <div className="pt-2 space-y-2 text-xs">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Nome do Colaborador</label>
+                                <input type="text" placeholder="Nome completo" className="w-full bg-slate-100 border border-slate-200 rounded-lg p-1.5 text-slate-800 text-xs" disabled />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Cargo / Função</label>
+                                <input type="text" placeholder="Ex: Desenvolvedor" className="w-full bg-slate-100 border border-slate-200 rounded-lg p-1.5 text-slate-800 text-xs" disabled />
+                              </div>
+                            </div>
+                            <button className="w-full py-2 rounded-xl text-white font-extrabold text-xs shadow-sm" style={{ backgroundColor: config.primaryColor }}>
+                              Enviar Cadastro
+                            </button>
+                          </div>
+                        )}
+
+                        {block.type === 'kanban' && (
+                          <div className="pt-2 grid grid-cols-3 gap-2">
+                            {[
+                              { stage: 'Triagem (4)', card: 'Fernanda M.' },
+                              { stage: 'Entrevista (2)', card: 'Rodrigo S.' },
+                              { stage: 'Proposta (1)', card: 'Camila K.' }
+                            ].map((col, idx) => (
+                              <div key={idx} className="bg-slate-100 p-2 rounded-xl border border-slate-200 text-xs space-y-1.5">
+                                <span className="text-[10px] font-extrabold text-slate-600 uppercase block">{col.stage}</span>
+                                <div className="p-2 bg-white rounded-lg shadow-xs border border-slate-200 font-bold text-slate-800 text-[11px]">
+                                  {col.card}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {block.type === 'calendar' && (
+                          <div className="pt-2 bg-slate-100 p-3 rounded-xl border border-slate-200 text-xs space-y-2">
+                            <div className="flex justify-between items-center font-bold text-slate-800 text-[11px]">
+                              <span>Julho 2026</span>
+                              <span className="text-emerald-600 text-[10px]">Férias Aprovadas</span>
+                            </div>
+                            <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-500">
+                              <span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span>
+                            </div>
+                            <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-slate-700">
+                              <span className="p-1">10</span>
+                              <span className="p-1 bg-emerald-500 text-white rounded font-bold">11</span>
+                              <span className="p-1 bg-emerald-500 text-white rounded font-bold">12</span>
+                              <span className="p-1 bg-emerald-500 text-white rounded font-bold">13</span>
+                              <span className="p-1">14</span>
+                              <span className="p-1">15</span>
+                              <span className="p-1">16</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {block.type === 'ponto' && (
+                          <div className="pt-2 bg-slate-900 text-white p-4 rounded-xl border border-slate-800 text-center space-y-2">
+                            <span className="text-xs font-mono font-bold text-emerald-400 block tracking-widest uppercase">PONTO ELETRÔNICO DIGITAL</span>
+                            <div className="text-3xl font-black font-mono tracking-wider text-amber-400">
+                              08:30:15
+                            </div>
+                            <div className="flex items-center justify-center space-x-1 text-[10px] text-slate-400">
+                              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                              <span>Geolocalização Ativa (GPS Validados)</span>
+                            </div>
+                            <button className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs py-2 rounded-xl shadow-md cursor-pointer transition-all">
+                              REGISTRAR PONTO
+                            </button>
+                          </div>
+                        )}
+
+                        {block.type === 'video' && (
+                          <div className="pt-2 bg-slate-900 text-white p-6 rounded-xl border border-slate-800 text-center space-y-2 relative overflow-hidden group">
+                            <div className="h-28 bg-slate-800 rounded-lg flex items-center justify-center relative">
+                              <div className="p-3 bg-amber-500 rounded-full text-slate-950 shadow-xl transform group-hover:scale-110 transition-transform">
+                                <Play className="h-6 w-6 fill-current" />
+                              </div>
+                            </div>
+                            <span className="text-xs font-bold text-slate-200 block">Vídeo Institucional de Integrantes & Onboarding</span>
+                          </div>
+                        )}
+
+                        {block.type === 'button' && (
+                          <div className="pt-2">
+                            <button
+                              className="w-full py-2.5 px-4 rounded-xl text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                              style={{ backgroundColor: config.primaryColor }}
+                            >
+                              <MousePointer className="h-4 w-4" />
+                              <span>{block.title || 'Clique Aqui'}</span>
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1318,6 +3068,80 @@ export default function MasterVisualBuilder({
                 </div>
               </div>
 
+              {/* PROPRIEDADES FUNCIONAIS */}
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-3">
+                <span className="text-[10px] font-extrabold text-amber-400 uppercase tracking-wider block border-b border-slate-800 pb-1">
+                  PROPRIEDADES FUNCIONAIS
+                </span>
+
+                {/* Permissões de Acesso */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-300 block mb-1">Permissão de Visualização</label>
+                  <select
+                    value={selectedBlock.permissionLevel || '3_developer'}
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      setSelectedBlock(prev => prev ? { ...prev, permissionLevel: val } : null);
+                      const updatedPages = config.customPages.map(page => ({
+                        ...page,
+                        blocks: page.blocks.map(b => b.id === selectedBlock.id ? { ...b, permissionLevel: val } : b)
+                      }));
+                      setConfig(prev => ({ ...prev, customPages: updatedPages }));
+                      setHasUnsavedChanges(true);
+                    }}
+                    className="w-full bg-slate-900 border border-slate-700 text-xs text-white rounded-lg p-2"
+                  >
+                    <option value="3_developer">Todos os Usuários</option>
+                    <option value="1_design">Somente Administradores (RH / Master)</option>
+                    <option value="2_layout">Somente Perfis Gestores</option>
+                  </select>
+                </div>
+
+                {/* Rota / Ação do Botão */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-300 block mb-1">Ação / Rota de Destino</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: /rh/funcionarios ou modal:novo"
+                    value={selectedBlock.content || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedBlock(prev => prev ? { ...prev, content: val } : null);
+                      const updatedPages = config.customPages.map(page => ({
+                        ...page,
+                        blocks: page.blocks.map(b => b.id === selectedBlock.id ? { ...b, content: val } : b)
+                      }));
+                      setConfig(prev => ({ ...prev, customPages: updatedPages }));
+                      setHasUnsavedChanges(true);
+                    }}
+                    className="w-full bg-slate-900 border border-slate-700 text-xs text-white rounded-lg p-2 font-mono"
+                  />
+                </div>
+
+                {/* Visibilidade Toggles */}
+                <div className="flex items-center justify-between text-xs pt-1">
+                  <span className="text-slate-300 font-medium">Ocultar para Usuários Comuns:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const val = !selectedBlock.hidden;
+                      setSelectedBlock(prev => prev ? { ...prev, hidden: val } : null);
+                      const updatedPages = config.customPages.map(page => ({
+                        ...page,
+                        blocks: page.blocks.map(b => b.id === selectedBlock.id ? { ...b, hidden: val } : b)
+                      }));
+                      setConfig(prev => ({ ...prev, customPages: updatedPages }));
+                      setHasUnsavedChanges(true);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold cursor-pointer transition-all ${
+                      selectedBlock.hidden ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    }`}
+                  >
+                    {selectedBlock.hidden ? 'Sim (Oculto)' : 'Não (Visível)'}
+                  </button>
+                </div>
+              </div>
+
               {/* Color Pickers */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
@@ -1344,6 +3168,25 @@ export default function MasterVisualBuilder({
                     />
                     <span className="text-[10px] font-mono text-slate-300 font-bold">{selectedBlock.style?.textColor || '#0f172a'}</span>
                   </div>
+                </div>
+              </div>
+
+              {/* Alignment & Font Size */}
+              <div className="space-y-2 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                <label className="text-xs font-bold text-slate-200 block">Alinhamento do Texto</label>
+                <div className="grid grid-cols-3 gap-1.5 text-[10px] font-bold">
+                  {(['left', 'center', 'right'] as const).map((align) => (
+                    <button
+                      key={align}
+                      type="button"
+                      onClick={() => handleUpdateBlockStyle('alignment', align)}
+                      className={`p-1.5 rounded-lg border capitalize transition-all cursor-pointer ${
+                        selectedBlock.style?.alignment === align ? 'bg-amber-500 text-slate-950 border-amber-400' : 'bg-slate-900 border-slate-700 text-slate-400'
+                      }`}
+                    >
+                      {align === 'left' ? 'Esquerda' : align === 'center' ? 'Centro' : 'Direita'}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -1409,12 +3252,15 @@ export default function MasterVisualBuilder({
 
       </div>
 
-      {/* 3. NEW PAGE MODAL */}
+      {/* 3. NEW PAGE MODAL WITH TEMPLATE OPTION */}
       {isNewPageModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl text-slate-100">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-slate-100">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-extrabold text-sm text-white">Criar Nova Página no Sistema</h3>
+              <div>
+                <h3 className="font-extrabold text-sm text-white">Criar Nova Página no GestRH</h3>
+                <p className="text-[11px] text-slate-400">Escolha uma página em branco ou use um modelo pré-montado.</p>
+              </div>
               <button
                 onClick={() => setIsNewPageModalOpen(false)}
                 className="text-slate-400 hover:text-white"
@@ -1423,35 +3269,175 @@ export default function MasterVisualBuilder({
               </button>
             </div>
 
-            <form onSubmit={handleCreatePage} className="space-y-4">
+            <div className="space-y-3">
+              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider block">1. Selecionar Modelo Pronto:</span>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {[
+                  { key: 'blank', title: 'Página em Branco', desc: 'Sua tela livre para montar' },
+                  { key: 'dashboard_rh', title: 'Dashboard Executivo', desc: 'KPIs, gráficos e tabelas' },
+                  { key: 'funcionarios', title: 'Funcionários & Dossiê', desc: 'Lista + formulários' },
+                  { key: 'recrutamento', title: 'Recrutamento ATS', desc: 'Kanban + banco de talentos' },
+                  { key: 'portal_funcionario', title: 'Portal Colaborador', desc: 'Ponto + férias + solicitações' }
+                ].map(tmpl => (
+                  <button
+                    key={tmpl.key}
+                    type="button"
+                    onClick={() => handleApplyTemplateToNewPage(tmpl.key)}
+                    className="p-3 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-left transition-all hover:border-amber-500/50 cursor-pointer"
+                  >
+                    <span className="font-extrabold text-white block text-[11px] leading-tight mb-1">{tmpl.title}</span>
+                    <span className="text-[10px] text-slate-400 block">{tmpl.desc}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="border-t border-slate-800 pt-3">
+                <span className="text-xs font-bold text-slate-300 block mb-2">2. Ou crie com título personalizado:</span>
+                <form onSubmit={handleCreatePage} className="flex space-x-2">
+                  <input
+                    type="text"
+                    placeholder="Ex: Treinamento & Capacitação"
+                    value={newPageTitle}
+                    onChange={(e) => setNewPageTitle(e.target.value)}
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newPageTitle.trim()}
+                    className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md cursor-pointer shrink-0"
+                  >
+                    Criar
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. PAGE SETTINGS MODAL (PROMPT 06) */}
+      {isPageSettingsModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl text-slate-100">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="font-extrabold text-sm text-white">Configurações da Página</h3>
+                <p className="text-[11px] text-slate-400">Edite o título, rota de navegação e permissões.</p>
+              </div>
+              <button
+                onClick={() => setIsPageSettingsModalOpen(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePageSettings} className="space-y-4 text-xs">
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">Título da Página</label>
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Treinamento & Cursos"
-                  value={newPageTitle}
-                  onChange={(e) => setNewPageTitle(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  value={pageSettings.title}
+                  onChange={(e) => setPageSettings({ ...pageSettings, title: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
 
-              <div className="flex justify-end space-x-2 pt-2">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">URL / Slug de Acesso</label>
+                <div className="flex items-center space-x-1">
+                  <span className="text-slate-500 font-mono text-xs">/</span>
+                  <input
+                    type="text"
+                    required
+                    value={pageSettings.slug}
+                    onChange={(e) => setPageSettings({ ...pageSettings, slug: e.target.value })}
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="page_init"
+                  checked={pageSettings.isInitialPage}
+                  onChange={(e) => setPageSettings({ ...pageSettings, isInitialPage: e.target.checked })}
+                  className="rounded border-slate-700 text-amber-500 focus:ring-amber-500 cursor-pointer"
+                />
+                <label htmlFor="page_init" className="text-xs font-bold text-slate-200 cursor-pointer">
+                  Definir como Página Inicial Padrão do Sistema
+                </label>
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setIsNewPageModalOpen(false)}
+                  onClick={() => setIsPageSettingsModalOpen(false)}
                   className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs px-4 py-2 rounded-xl"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs px-4 py-2 rounded-xl shadow-md"
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs px-4 py-2 rounded-xl shadow-md cursor-pointer"
                 >
-                  Criar Página
+                  Salvar Configurações
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 5. VERSION HISTORY MODAL (PROMPT 06) */}
+      {isHistoryModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-slate-100">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="font-extrabold text-sm text-white">Histórico de Versões do GestRH Builder</h3>
+                <p className="text-[11px] text-slate-400">Restaure versões salvas anteriormente pelo MASTER.</p>
+              </div>
+              <button
+                onClick={() => setIsHistoryModalOpen(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+              {historyList.length === 0 ? (
+                <div className="p-6 text-center text-slate-500 text-xs">
+                  Nenhuma versão histórica gravada até o momento.
+                </div>
+              ) : (
+                historyList.map((hist) => (
+                  <div key={hist.id} className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-black text-amber-400 font-mono">v{hist.version}</span>
+                        <span className="text-slate-300 font-bold">{hist.notes || 'Alterações no layout'}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 pt-0.5">
+                        {new Date(hist.updatedAt).toLocaleString('pt-BR')} • Autor: {hist.updatedBy}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        handleRestoreHistory(hist);
+                        setIsHistoryModalOpen(false);
+                      }}
+                      className="bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 text-xs font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer"
+                    >
+                      Restaurar
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}

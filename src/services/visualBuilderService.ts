@@ -82,7 +82,7 @@ export interface VisualBuilderBlock {
     | 'timeline' | 'kanban' | 'widget' | 'upload' | 'text' | 'title' | 'image' 
     | 'banner' | 'input' | 'select' | 'checkbox' | 'switch' | 'avatar' 
     | 'menu' | 'sidebar' | 'header' | 'footer' | 'divisor' | 'tabs' 
-    | 'accordion' | 'mapa' | 'chat' | 'video' | 'html' | 'iframe' | 'widget_ia';
+    | 'accordion' | 'mapa' | 'chat' | 'video' | 'html' | 'iframe' | 'widget_ia' | 'list' | 'ponto';
   title: string;
   subtitle?: string;
   content?: string;
@@ -122,8 +122,179 @@ export interface DesignerVersionHistory {
   config: GlobalDesignSystemConfig;
 }
 
+export interface AiDesignerLog {
+  id: string;
+  timestamp: string;
+  user: string;
+  command: string;
+  pageId: string;
+  pageTitle: string;
+  status: 'applied' | 'rejected' | 'blocked';
+  summary: string;
+}
+
+export interface CustomFieldDefinition {
+  id: string;
+  targetModule: 'funcionarios' | 'recrutamento' | 'ponto' | 'folha' | 'ferias' | 'beneficios' | 'geral';
+  label: string;
+  fieldName: string;
+  fieldType: 'text' | 'number' | 'date' | 'select' | 'boolean';
+  options?: string[];
+  required?: boolean;
+}
+
+export interface ClientModel {
+  id: string;
+  companyId?: string;
+  companyName: string;
+  modelName: string;
+  planTier: 'basico' | 'profissional' | 'premium';
+  createdAt: string;
+  updatedAt: string;
+  
+  branding: {
+    logoUrl?: string;
+    systemName: string;
+    primaryColor: string;
+    secondaryColor: string;
+    accentColor: string;
+    themeMode: 'light' | 'dark' | 'auto';
+    fontFamily: string;
+    faviconUrl?: string;
+  };
+
+  activeModules: {
+    funcionarios: boolean;
+    ponto: boolean;
+    recrutamento: boolean;
+    bancoTalentos: boolean;
+    entrevistaIa: boolean;
+    documentos: boolean;
+    ferias: boolean;
+    beneficios: boolean;
+    treinamentos: boolean;
+    folha: boolean;
+    relatorios: boolean;
+    chatIa: boolean;
+  };
+
+  customPages: CustomVisualPage[];
+  customFields: CustomFieldDefinition[];
+}
+
 const STORAGE_KEY = 'gestrh_global_design_system_v2';
 const HISTORY_KEY = 'gestrh_global_designer_history_v2';
+const AI_LOGS_KEY = 'gestrh_builder_ai_logs_v1';
+const CLIENT_MODELS_KEY = 'gestrh_client_models_v1';
+
+export const DEFAULT_CLIENT_MODELS: ClientModel[] = [
+  {
+    id: 'model-logistica',
+    companyName: 'Transportadora ABC',
+    modelName: 'RH Logística & Frota',
+    planTier: 'profissional',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    branding: {
+      systemName: 'GestRH Logística',
+      primaryColor: '#0284c7', // Sky blue
+      secondaryColor: '#0f172a',
+      accentColor: '#f59e0b',
+      themeMode: 'dark',
+      fontFamily: 'Plus Jakarta Sans'
+    },
+    activeModules: {
+      funcionarios: true,
+      ponto: true,
+      recrutamento: true,
+      bancoTalentos: true,
+      entrevistaIa: false,
+      documentos: true,
+      ferias: true,
+      beneficios: false,
+      treinamentos: false,
+      folha: true,
+      relatorios: true,
+      chatIa: true
+    },
+    customPages: [],
+    customFields: [
+      { id: 'cf-1', targetModule: 'funcionarios', label: 'Número da Frota', fieldName: 'numero_frota', fieldType: 'text', required: true },
+      { id: 'cf-2', targetModule: 'funcionarios', label: 'Centro de Custo', fieldName: 'centro_custo', fieldType: 'select', options: ['Operacional', 'Logística', 'Administrativo'], required: true },
+      { id: 'cf-3', targetModule: 'funcionarios', label: 'Escala de Trabalho', fieldName: 'escala', fieldType: 'select', options: ['12x36', '6x1', '5x2'], required: false },
+      { id: 'cf-4', targetModule: 'funcionarios', label: 'Supervisor Direto', fieldName: 'supervisor', fieldType: 'text', required: false }
+    ]
+  },
+  {
+    id: 'model-industria',
+    companyName: 'Indústrias Metalúrgicas',
+    modelName: 'RH Indústria & Manufatura',
+    planTier: 'premium',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    branding: {
+      systemName: 'GestRH Indústria',
+      primaryColor: '#1e3a8a', // Dark Navy
+      secondaryColor: '#0284c7',
+      accentColor: '#10b981',
+      themeMode: 'dark',
+      fontFamily: 'Inter'
+    },
+    activeModules: {
+      funcionarios: true,
+      ponto: true,
+      recrutamento: true,
+      bancoTalentos: true,
+      entrevistaIa: true,
+      documentos: true,
+      ferias: true,
+      beneficios: true,
+      treinamentos: true,
+      folha: true,
+      relatorios: true,
+      chatIa: true
+    },
+    customPages: [],
+    customFields: [
+      { id: 'cf-5', targetModule: 'funcionarios', label: 'Linha de Produção', fieldName: 'linha_producao', fieldType: 'text', required: true },
+      { id: 'cf-6', targetModule: 'funcionarios', label: 'Turno de Trabalho', fieldName: 'turno', fieldType: 'select', options: ['Manhã', 'Tarde', 'Noite', 'Rodízio'], required: true }
+    ]
+  },
+  {
+    id: 'model-compact',
+    companyName: 'Empresa Pequena Ltda',
+    modelName: 'GestRH Compact Simplificado',
+    planTier: 'basico',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    branding: {
+      systemName: 'GestRH Compact',
+      primaryColor: '#059669', // Emerald
+      secondaryColor: '#0f172a',
+      accentColor: '#3b82f6',
+      themeMode: 'auto',
+      fontFamily: 'Plus Jakarta Sans'
+    },
+    activeModules: {
+      funcionarios: true,
+      ponto: false,
+      recrutamento: false,
+      bancoTalentos: false,
+      entrevistaIa: false,
+      documentos: true,
+      ferias: true,
+      beneficios: false,
+      treinamentos: false,
+      folha: false,
+      relatorios: true,
+      chatIa: false
+    },
+    customPages: [],
+    customFields: [
+      { id: 'cf-7', targetModule: 'funcionarios', label: 'Observação Interna', fieldName: 'obs_interna', fieldType: 'text', required: false }
+    ]
+  }
+];
 
 export const DEFAULT_GLOBAL_DESIGN: GlobalDesignSystemConfig = {
   id: 'global_master_designer',
@@ -190,15 +361,19 @@ export const DEFAULT_GLOBAL_DESIGN: GlobalDesignSystemConfig = {
     { id: 'page-fin-cobran', title: 'Financeiro - Cobranças', slug: 'financeiro/cobrancas', iconName: 'DollarSign', visible: true, order: 16, blocks: [{ id: 'b-fin-2', type: 'table', title: 'Histórico de Faturamento', subtitle: 'Boletos e Pix Recorrente', size: 'full', order: 1 }] },
     { id: 'page-fin-assin', title: 'Financeiro - Assinaturas', slug: 'financeiro/assinaturas', iconName: 'CheckCircle2', visible: true, order: 17, blocks: [{ id: 'b-fin-3', type: 'card', title: 'Status de Assinaturas SaaS', subtitle: 'MRR e Métricas Globais', size: 'full', order: 1 }] },
 
+    // Relatórios & Chat IA
+    { id: 'page-reports', title: 'Relatórios & Analytics', slug: 'relatorios', iconName: 'BarChart3', visible: true, order: 18, blocks: [{ id: 'b-rep-1', type: 'chart', title: 'Relatórios Gerenciais', subtitle: 'Métricas de Headcount, Turnover e Custos', size: 'full', order: 1 }] },
+    { id: 'page-chat-ia', title: 'Assistente IA de RH', slug: 'chat-ia', iconName: 'Sparkles', visible: true, order: 19, blocks: [{ id: 'b-chat-1', type: 'widget_ia', title: 'Assistente Virtual com IA', subtitle: 'Tire dúvidas sobre CLT, políticas e comunicados', size: 'full', order: 1 }] },
+
     // Configurações
-    { id: 'page-config', title: 'Configurações do Sistema', slug: 'configuracoes', iconName: 'Settings', visible: true, order: 18, blocks: [{ id: 'b-cfg-1', type: 'form', title: 'Parâmetros Globais & Integrações', subtitle: 'Configurações de segurança e API', size: 'full', order: 1 }] },
+    { id: 'page-config', title: 'Configurações do Sistema', slug: 'configuracoes', iconName: 'Settings', visible: true, order: 20, blocks: [{ id: 'b-cfg-1', type: 'form', title: 'Parâmetros Globais & Integrações', subtitle: 'Configurações de segurança e API', size: 'full', order: 1 }] },
 
     // Site Institucional
-    { id: 'page-site-home', title: 'Site - Home Page', slug: 'site/home', iconName: 'Globe', visible: true, order: 19, blocks: [{ id: 'b-site-1', type: 'banner', title: 'GestRH — A Plataforma Completa de RH com IA', subtitle: 'Transforme a gestão de pessoas da sua empresa', size: 'full', order: 1 }] },
-    { id: 'page-site-login', title: 'Site - Login', slug: 'site/login', iconName: 'Lock', visible: true, order: 20, blocks: [{ id: 'b-site-2', type: 'form', title: 'Portal de Acesso Seguro', subtitle: 'Insira seu e-mail e senha', size: 'half', order: 1 }] },
-    { id: 'page-site-cad', title: 'Site - Cadastro', slug: 'site/cadastro', iconName: 'UserPlus', visible: true, order: 21, blocks: [{ id: 'b-site-3', type: 'form', title: 'Teste Grátis por 14 dias', subtitle: 'Sem necessidade de cartão de crédito', size: 'half', order: 1 }] },
-    { id: 'page-site-sobre', title: 'Site - Sobre Nós', slug: 'site/sobre', iconName: 'FileText', visible: true, order: 22, blocks: [{ id: 'b-site-4', type: 'text', title: 'Nossa Missão & Valores', subtitle: 'Conectando tecnologia e pessoas desde 2024', size: 'full', order: 1 }] },
-    { id: 'page-site-contato', title: 'Site - Contato', slug: 'site/contato', iconName: 'Chat', visible: true, order: 23, blocks: [{ id: 'b-site-5', type: 'form', title: 'Fale com Nossos Especialistas', subtitle: 'Atendimento corporativo', size: 'full', order: 1 }] }
+    { id: 'page-site-home', title: 'Site - Home Page', slug: 'site/home', iconName: 'Globe', visible: true, order: 21, blocks: [{ id: 'b-site-1', type: 'banner', title: 'GestRH — A Plataforma Completa de RH com IA', subtitle: 'Transforme a gestão de pessoas da sua empresa', size: 'full', order: 1 }] },
+    { id: 'page-site-login', title: 'Site - Login', slug: 'site/login', iconName: 'Lock', visible: true, order: 22, blocks: [{ id: 'b-site-2', type: 'form', title: 'Portal de Acesso Seguro', subtitle: 'Insira seu e-mail e senha', size: 'half', order: 1 }] },
+    { id: 'page-site-cad', title: 'Site - Cadastro', slug: 'site/cadastro', iconName: 'UserPlus', visible: true, order: 23, blocks: [{ id: 'b-site-3', type: 'form', title: 'Teste Grátis por 14 dias', subtitle: 'Sem necessidade de cartão de crédito', size: 'half', order: 1 }] },
+    { id: 'page-site-sobre', title: 'Site - Sobre Nós', slug: 'site/sobre', iconName: 'FileText', visible: true, order: 24, blocks: [{ id: 'b-site-4', type: 'text', title: 'Nossa Missão & Valores', subtitle: 'Conectando tecnologia e pessoas desde 2024', size: 'full', order: 1 }] },
+    { id: 'page-site-contato', title: 'Site - Contato', slug: 'site/contato', iconName: 'Chat', visible: true, order: 25, blocks: [{ id: 'b-site-5', type: 'form', title: 'Fale com Nossos Especialistas', subtitle: 'Atendimento corporativo', size: 'full', order: 1 }] }
   ],
   globalComponentStyles: {}
 };
@@ -292,6 +467,33 @@ export const visualBuilderService = {
     return [];
   },
 
+  addAiLog(entry: AiDesignerLog) {
+    try {
+      const stored = localStorage.getItem(AI_LOGS_KEY);
+      const logs: AiDesignerLog[] = stored ? JSON.parse(stored) : [];
+      logs.unshift(entry);
+      if (logs.length > 50) logs.pop();
+      localStorage.setItem(AI_LOGS_KEY, JSON.stringify(logs));
+
+      // Asynchronously save log to Firestore
+      setDoc(doc(firestoreDb, 'SYSTEM_DESIGNER_AI_LOGS', entry.id), entry).catch(err => {
+        console.warn('Firestore AI log save ignored:', err);
+      });
+    } catch (e) {
+      console.error('Error saving AI log:', e);
+    }
+  },
+
+  getAiLogs(): AiDesignerLog[] {
+    try {
+      const stored = localStorage.getItem(AI_LOGS_KEY);
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error('Error loading AI logs:', e);
+    }
+    return [];
+  },
+
   applyGlobalStylesToDOM(config: GlobalDesignSystemConfig) {
     if (typeof document === 'undefined') return;
 
@@ -334,5 +536,92 @@ export const visualBuilderService = {
         font-family: var(--font-family-base);
       }
     `;
+  },
+
+  // --- CLIENT MODELS MANAGEMENT (PROMPT 05) ---
+  getClientModels(): ClientModel[] {
+    try {
+      const stored = localStorage.getItem(CLIENT_MODELS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading client models from localStorage:', e);
+    }
+    // Return default models if empty
+    localStorage.setItem(CLIENT_MODELS_KEY, JSON.stringify(DEFAULT_CLIENT_MODELS));
+    return DEFAULT_CLIENT_MODELS;
+  },
+
+  async saveClientModel(model: ClientModel): Promise<ClientModel[]> {
+    const currentList = this.getClientModels();
+    const index = currentList.findIndex(m => m.id === model.id);
+    const updatedModel: ClientModel = {
+      ...model,
+      updatedAt: new Date().toISOString()
+    };
+
+    let newList: ClientModel[];
+    if (index >= 0) {
+      newList = [...currentList];
+      newList[index] = updatedModel;
+    } else {
+      newList = [updatedModel, ...currentList];
+    }
+
+    localStorage.setItem(CLIENT_MODELS_KEY, JSON.stringify(newList));
+
+    // Save to Firestore asynchronously under CLIENTS_MODELS collection
+    try {
+      await setDoc(doc(firestoreDb, 'CLIENTS_MODELS', updatedModel.id), updatedModel);
+    } catch (e) {
+      console.error('Error saving client model to Firestore:', e);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('gestrh_client_models_changed', { detail: newList }));
+    }
+
+    return newList;
+  },
+
+  async deleteClientModel(id: string): Promise<ClientModel[]> {
+    const currentList = this.getClientModels();
+    const newList = currentList.filter(m => m.id !== id);
+    localStorage.setItem(CLIENT_MODELS_KEY, JSON.stringify(newList));
+    return newList;
+  },
+
+  async duplicateClientModel(id: string): Promise<{ list: ClientModel[]; newModel: ClientModel }> {
+    const currentList = this.getClientModels();
+    const source = currentList.find(m => m.id === id);
+    if (!source) throw new Error('Modelo de origem não encontrado.');
+
+    const newModel: ClientModel = {
+      ...JSON.parse(JSON.stringify(source)),
+      id: 'model-' + Date.now(),
+      modelName: `${source.modelName} (Cópia)`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const newList = [newModel, ...currentList];
+    localStorage.setItem(CLIENT_MODELS_KEY, JSON.stringify(newList));
+
+    try {
+      await setDoc(doc(firestoreDb, 'CLIENTS_MODELS', newModel.id), newModel);
+    } catch (e) {
+      console.error('Error duplicating client model in Firestore:', e);
+    }
+
+    return { list: newList, newModel };
+  },
+
+  async restoreClientModelToDefault(id: string): Promise<ClientModel[]> {
+    const defaultSource = DEFAULT_CLIENT_MODELS.find(m => m.id === id);
+    if (!defaultSource) return this.getClientModels();
+
+    return this.saveClientModel(JSON.parse(JSON.stringify(defaultSource)));
   }
 };
