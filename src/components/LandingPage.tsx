@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { Job, Candidate } from '../types';
 import { SiteConfig } from '../types_master';
-import { firebaseService, DEFAULT_SITE_CONFIG } from '../firebase';
+import { SiteConfigService, DEFAULT_SITE_CONFIG } from '../services/centralServices';
 import { isJobPublished, DEFAULT_COMPANY_LOGOS, generateJobSlug } from './publicJobUtils';
 
 interface LandingPageProps {
@@ -46,13 +46,12 @@ export default function LandingPage({ jobs, onNavigateToDashboard, onAddCandidat
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(DEFAULT_SITE_CONFIG);
 
   useEffect(() => {
-    firebaseService.db.getSiteConfig()
-      .then(cfg => {
-        if (cfg) setSiteConfig(cfg);
-      })
-      .catch(err => {
-        console.warn('Failed to load site config in LandingPage:', err);
-      });
+    try {
+      const cfg = SiteConfigService.getSiteConfig();
+      if (cfg) setSiteConfig(cfg);
+    } catch (err) {
+      console.warn('Failed to load site config in LandingPage:', err);
+    }
   }, []);
 
   // Search parameters

@@ -33,7 +33,7 @@ import {
   Cell, 
   Legend 
 } from 'recharts';
-import { firebaseService } from '../firebase';
+import { firebaseService } from '../services/centralServices';
 import { UserAccount } from '../types_master';
 import { 
   Termination, 

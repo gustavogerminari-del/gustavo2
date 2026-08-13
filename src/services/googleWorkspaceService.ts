@@ -1,12 +1,5 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
-import firebaseConfig from '../../firebase-applet-config.json';
+// RL CONNECT - Google Workspace Integration (REST API without Firebase)
 
-// Initialize or reuse Firebase App instance
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
-
-// Scopes required for Gmail, Google Meet, and Google Chat
 export const WORKSPACE_SCOPES = [
   'https://mail.google.com/',
   'https://www.googleapis.com/auth/gmail.readonly',
@@ -20,61 +13,64 @@ export const WORKSPACE_SCOPES = [
   'https://www.googleapis.com/auth/chat.messages.readonly',
   'https://www.googleapis.com/auth/chat.spaces',
   'https://www.googleapis.com/auth/chat.spaces.readonly',
-  'https://www.googleapis.com/auth/chat.memberships'
+  'https://www.googleapis.com/auth/chat.memberships',
+  'https://www.googleapis.com/auth/calendar',
+  'https://www.googleapis.com/auth/calendar.events'
 ];
 
-let isSigningIn = false;
-let cachedAccessToken: string | null = null;
+let cachedAccessToken: string | null = typeof window !== 'undefined' ? localStorage.getItem('rl_connect_google_oauth_token') : null;
 
-// Initialize auth state listener
 export const initAuth = (
-  onAuthSuccess?: (user: User, token: string) => void,
+  onAuthSuccess?: (user: any, token: string) => void,
   onAuthFailure?: () => void
 ) => {
-  return onAuthStateChanged(auth, async (user: User | null) => {
-    if (user) {
-      if (cachedAccessToken) {
-        if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
-      } else if (!isSigningIn) {
-        cachedAccessToken = null;
-        if (onAuthFailure) onAuthFailure();
-      }
-    } else {
-      cachedAccessToken = null;
-      if (onAuthFailure) onAuthFailure();
-    }
-  });
+  const token = typeof window !== 'undefined' ? localStorage.getItem('rl_connect_google_oauth_token') : null;
+  const userRaw = typeof window !== 'undefined' ? localStorage.getItem('rl_connect_google_user') : null;
+  if (token) {
+    cachedAccessToken = token;
+    const user = userRaw ? JSON.parse(userRaw) : { displayName: 'Google Workspace Connected', email: 'workspace@rlourenco.com.br' };
+    if (onAuthSuccess) onAuthSuccess(user, token);
+  } else {
+    cachedAccessToken = null;
+    if (onAuthFailure) onAuthFailure();
+  }
+  return () => {};
 };
 
-export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
-  try {
-    isSigningIn = true;
-    const provider = new GoogleAuthProvider();
-    WORKSPACE_SCOPES.forEach(scope => provider.addScope(scope));
-
-    const result = await signInWithPopup(auth, provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (!credential?.accessToken) {
-      throw new Error('Não foi possível obter o token de acesso do Google.');
+export const setAccessToken = (token: string, userObj?: any) => {
+  cachedAccessToken = token;
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('rl_connect_google_oauth_token', token);
+    if (userObj) {
+      localStorage.setItem('rl_connect_google_user', JSON.stringify(userObj));
     }
-
-    cachedAccessToken = credential.accessToken;
-    return { user: result.user, accessToken: cachedAccessToken };
-  } catch (error: any) {
-    console.error('Sign in error:', error);
-    throw error;
-  } finally {
-    isSigningIn = false;
   }
 };
 
 export const getAccessToken = (): string | null => {
-  return cachedAccessToken;
+  if (cachedAccessToken) return cachedAccessToken;
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('rl_connect_google_oauth_token');
+  }
+  return null;
 };
 
 export const logoutWorkspace = async () => {
-  await auth.signOut();
   cachedAccessToken = null;
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('rl_connect_google_oauth_token');
+    localStorage.removeItem('rl_connect_google_user');
+  }
+};
+
+export const googleSignIn = async (): Promise<{ user: any; accessToken: string } | null> => {
+  const token = getAccessToken();
+  if (token) {
+    const userRaw = localStorage.getItem('rl_connect_google_user');
+    const user = userRaw ? JSON.parse(userRaw) : { displayName: 'Google Workspace Account', email: 'workspace@rlourenco.com.br' };
+    return { user, accessToken: token };
+  }
+  throw new Error('Conecte sua conta do Google Workspace em Configurações > Integrações para agendar e gerenciar reuniões.');
 };
 
 // --- GMAIL SERVICES ---
@@ -250,5 +246,104 @@ export const chatService = {
     }
 
     return await res.json();
+  }
+};
+
+// --- GOOGLE CALENDAR SERVICES ---
+export interface CalendarEvent {
+  id: string;
+  summary: string;
+  description?: string;
+  start: { dateTime?: string; date?: string };
+  end: { dateTime?: string; date?: string };
+  location?: string;
+  htmlLink?: string;
+  hangoutLink?: string;
+  attendees?: { email: string; responseStatus?: string }[];
+}
+
+export const calendarService = {
+  async listUpcomingEvents(maxResults = 10): Promise<CalendarEvent[]> {
+    const token = getAccessToken();
+    if (!token) throw new Error('Não autenticado com o Google.');
+
+    const nowIso = new Date().toISOString();
+    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(nowIso)}&singleEvents=true&orderBy=startTime&maxResults=${maxResults}`;
+
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || 'Erro ao buscar eventos do Google Calendar.');
+    }
+
+    const data = await res.json();
+    return data.items || [];
+  },
+
+  async createEvent(
+    summary: string,
+    description: string,
+    startIso: string,
+    endIso: string,
+    attendeesEmails: string[] = [],
+    createMeetLink = true
+  ): Promise<CalendarEvent> {
+    const token = getAccessToken();
+    if (!token) throw new Error('Não autenticado com o Google.');
+
+    const eventPayload: any = {
+      summary,
+      description,
+      start: { dateTime: startIso },
+      end: { dateTime: endIso },
+      attendees: attendeesEmails.filter(Boolean).map(email => ({ email }))
+    };
+
+    if (createMeetLink) {
+      eventPayload.conferenceData = {
+        createRequest: {
+          requestId: `gestrh-meet-${Date.now()}`,
+          conferenceSolutionKey: { type: 'hangoutsMeet' }
+        }
+      };
+    }
+
+    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(eventPayload)
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || 'Erro ao agendar evento no Google Calendar.');
+    }
+
+    return await res.json();
+  },
+
+  async deleteEvent(eventId: string): Promise<boolean> {
+    const token = getAccessToken();
+    if (!token) throw new Error('Não autenticado com o Google.');
+
+    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`;
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || 'Erro ao excluir evento do Google Calendar.');
+    }
+
+    return true;
   }
 };

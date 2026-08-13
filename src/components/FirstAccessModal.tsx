@@ -19,7 +19,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { UserAccount } from '../types_master';
-import { firebaseService } from '../firebase';
+import { firebaseService } from '../services/centralServices';
 
 interface FirstAccessModalProps {
   currentUser: UserAccount;

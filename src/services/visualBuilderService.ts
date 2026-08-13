@@ -3,9 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { firestoreDb, safeFirestoreGetDoc, safeFirestoreSetDoc } from '../firebase';
-import { doc } from 'firebase/firestore';
-
 export interface GlobalDesignSystemConfig {
   id: string;
   updatedAt: string;
@@ -381,19 +378,6 @@ export const DEFAULT_GLOBAL_DESIGN: GlobalDesignSystemConfig = {
 export const visualBuilderService = {
   async loadGlobalConfig(): Promise<GlobalDesignSystemConfig> {
     try {
-      // 1. Try Firestore first
-      const snap = await safeFirestoreGetDoc(doc(firestoreDb, 'SYSTEM_DESIGNER', 'global_master_designer'));
-      if (snap && typeof snap.exists === 'function' && snap.exists()) {
-        const data = snap.data() as GlobalDesignSystemConfig;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        return data;
-      }
-    } catch (e) {
-      console.warn('Firestore load notice for global design system:', e);
-    }
-
-    try {
-      // 2. Fallback to localStorage
       const local = localStorage.getItem(STORAGE_KEY);
       if (local) {
         return JSON.parse(local);
@@ -426,9 +410,6 @@ export const visualBuilderService = {
       summary,
       config: JSON.parse(JSON.stringify(updatedConfig))
     });
-
-    // Save to Firestore asynchronously with timeout
-    await safeFirestoreSetDoc(doc(firestoreDb, 'SYSTEM_DESIGNER', 'global_master_designer'), updatedConfig);
 
     // Apply global CSS rules dynamically to document
     this.applyGlobalStylesToDOM(updatedConfig);
@@ -470,9 +451,6 @@ export const visualBuilderService = {
       logs.unshift(entry);
       if (logs.length > 50) logs.pop();
       localStorage.setItem(AI_LOGS_KEY, JSON.stringify(logs));
-
-      // Asynchronously save log to Firestore with timeout
-      safeFirestoreSetDoc(doc(firestoreDb, 'SYSTEM_DESIGNER_AI_LOGS', entry.id), entry);
     } catch (e) {
       console.error('Error saving AI log:', e);
     }
@@ -566,9 +544,6 @@ export const visualBuilderService = {
 
     localStorage.setItem(CLIENT_MODELS_KEY, JSON.stringify(newList));
 
-    // Save to Firestore asynchronously under CLIENTS_MODELS collection
-    safeFirestoreSetDoc(doc(firestoreDb, 'CLIENTS_MODELS', updatedModel.id), updatedModel);
-
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('gestrh_client_models_changed', { detail: newList }));
     }
@@ -598,8 +573,6 @@ export const visualBuilderService = {
 
     const newList = [newModel, ...currentList];
     localStorage.setItem(CLIENT_MODELS_KEY, JSON.stringify(newList));
-
-    safeFirestoreSetDoc(doc(firestoreDb, 'CLIENTS_MODELS', newModel.id), newModel);
 
     return { list: newList, newModel };
   },

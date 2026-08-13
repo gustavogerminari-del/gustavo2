@@ -1,23 +1,16 @@
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import firebaseConfig from '../../firebase-applet-config.json';
-import { initializeApp, getApps, getApp } from 'firebase/app';
+/**
+ * RL CONNECT - Interview Storage Service
+ * Clean local IndexedDB and Object URL storage for interview audio, video, and transcripts.
+ * NO FIREBASE DEPENDENCIES.
+ */
 
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-let firebaseStorage: any = null;
-
-try {
-  firebaseStorage = getStorage(app);
-} catch (err) {
-  console.warn("Firebase storage init warning:", err);
-}
-
-const DB_NAME = 'GestRH_InterviewRecordings_DB';
+const DB_NAME = 'RLCONNECT_InterviewRecordings_DB';
 const STORE_NAME = 'recordings';
 const DB_VERSION = 1;
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    if (!window.indexedDB) {
+    if (typeof window === 'undefined' || !window.indexedDB) {
       reject(new Error("IndexedDB not supported in this browser environment."));
       return;
     }
@@ -87,7 +80,6 @@ export class InterviewStorageService {
       });
     } catch (err) {
       console.warn("IndexedDB save fallback warning:", err);
-      // Fallback: create temporary Object URLs from blobs
       if (data.videoBlob) resultUrls.videoUrl = URL.createObjectURL(data.videoBlob);
       if (data.audioRecrutadorBlob) resultUrls.audioRecrutadorUrl = URL.createObjectURL(data.audioRecrutadorBlob);
       if (data.audioCandidatoBlob) resultUrls.audioCandidatoUrl = URL.createObjectURL(data.audioCandidatoBlob);
@@ -105,80 +97,14 @@ export class InterviewStorageService {
     };
   }
 
-  /**
-   * Upload to Firebase Storage under `interviews/{candidato_id}/{entrevista_id}/`
-   */
-  public static async uploadToFirebaseStorage(
-    candidateId: string,
-    interviewId: string,
-    data: InterviewRecordingsData
-  ): Promise<Partial<StoredRecordingsUrls>> {
-    if (!firebaseStorage) {
-      console.warn("Firebase Storage client not initialized, skipping cloud storage upload.");
-      return {};
-    }
-
-    const basePath = `interviews/${candidateId}/${interviewId}`;
-    const cloudUrls: Partial<StoredRecordingsUrls> = {};
-
-    try {
-      // 1. Upload Video MP4 / WebM
-      if (data.videoBlob) {
-        const videoRef = ref(firebaseStorage, `${basePath}/video.mp4`);
-        await uploadBytes(videoRef, data.videoBlob, { contentType: data.videoBlob.type || 'video/mp4' });
-        cloudUrls.videoUrl = await getDownloadURL(videoRef);
-      }
-
-      // 2. Upload Recruiter Audio WAV / WebM
-      if (data.audioRecrutadorBlob) {
-        const audioRecRef = ref(firebaseStorage, `${basePath}/audio_recrutador.wav`);
-        await uploadBytes(audioRecRef, data.audioRecrutadorBlob, { contentType: data.audioRecrutadorBlob.type || 'audio/wav' });
-        cloudUrls.audioRecrutadorUrl = await getDownloadURL(audioRecRef);
-      }
-
-      // 3. Upload Candidate Audio WAV / WebM
-      if (data.audioCandidatoBlob) {
-        const audioCandRef = ref(firebaseStorage, `${basePath}/audio_candidato.wav`);
-        await uploadBytes(audioCandRef, data.audioCandidatoBlob, { contentType: data.audioCandidatoBlob.type || 'audio/wav' });
-        cloudUrls.audioCandidatoUrl = await getDownloadURL(audioCandRef);
-      }
-
-      // 4. Upload Transcript Text
-      if (data.transcriptText) {
-        const txtBlob = new Blob([data.transcriptText], { type: 'text/plain;charset=utf-8' });
-        const txtRef = ref(firebaseStorage, `${basePath}/transcript.txt`);
-        await uploadBytes(txtRef, txtBlob, { contentType: 'text/plain' });
-        cloudUrls.transcriptTxtUrl = await getDownloadURL(txtRef);
-      }
-    } catch (err) {
-      console.warn("Firebase Storage upload error (using local storage fallback):", err);
-    }
-
-    return cloudUrls;
-  }
-
-  /**
-   * Save recording package completely (Local + Cloud if available)
-   */
   public static async saveInterviewRecordings(
     candidateId: string,
     interviewId: string,
     data: InterviewRecordingsData
   ): Promise<StoredRecordingsUrls> {
-    const localUrls = await this.saveLocally(candidateId, interviewId, data);
-    const cloudUrls = await this.uploadToFirebaseStorage(candidateId, interviewId, data);
-
-    return {
-      videoUrl: cloudUrls.videoUrl || localUrls.videoUrl,
-      audioRecrutadorUrl: cloudUrls.audioRecrutadorUrl || localUrls.audioRecrutadorUrl,
-      audioCandidatoUrl: cloudUrls.audioCandidatoUrl || localUrls.audioCandidatoUrl,
-      transcriptTxtUrl: cloudUrls.transcriptTxtUrl || localUrls.transcriptTxtUrl
-    };
+    return this.saveLocally(candidateId, interviewId, data);
   }
 
-  /**
-   * Retrieve stored Blobs from IndexedDB if needed
-   */
   public static async getStoredBlobs(
     candidateId: string,
     interviewId: string

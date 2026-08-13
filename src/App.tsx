@@ -11,7 +11,7 @@ import LoginPortal from './components/LoginPortal';
 import PublicJobPage from './components/PublicJobPage';
 import CandidateInterviewRoom from './components/interview/CandidateInterviewRoom';
 import { generateJobSlug } from './components/publicJobUtils';
-import { firebaseService } from './firebase';
+import { firebaseService } from './services/centralServices';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { UserAccount } from './types_master';
 import { visualBuilderService } from './services/visualBuilderService';

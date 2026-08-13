@@ -70,7 +70,7 @@ import {
   Maximize2
 } from 'lucide-react';
 
-import { firebaseService } from '../firebase';
+import { firebaseService } from '../services/centralServices';
 
 import { layoutService, CompanyLayoutConfig } from '../services/layoutService';
 

@@ -17,7 +17,7 @@ import {
   Building2,
   CheckCircle2
 } from 'lucide-react';
-import { firebaseService } from '../firebase';
+import { firebaseService } from '../services/centralServices';
 import { UserAccount } from '../types_master';
 
 interface LoginPortalProps {
@@ -57,7 +57,7 @@ export default function LoginPortal({ onLoginSuccess, onBackToPortal }: LoginPor
     setError(null);
     setEmail(targetEmail);
     try {
-      const user = await firebaseService.auth.signIn(targetEmail);
+      const user = await firebaseService.auth.signIn(targetEmail, '');
       onLoginSuccess(user);
     } catch (err: any) {
       setError(err.message || 'Erro ao realizar login rápido.');

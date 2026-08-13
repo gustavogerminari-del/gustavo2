@@ -30,7 +30,7 @@ import {
   Sparkles,
   Palette
 } from 'lucide-react';
-import { firebaseService } from '../firebase';
+import { firebaseService } from '../services/centralServices';
 import { SaaSModule, SaaSProduct, SaaSPlan, SaaSCompany, UserAccount } from '../types_master';
 import SiteConfigManager from './SiteConfigManager';
 import DevLabModule from './DevLabModule';

@@ -39,7 +39,7 @@ import {
   SiteMidiaConfig, 
   SiteContatoConfig 
 } from '../types_master';
-import { firebaseService, DEFAULT_SITE_CONFIG } from '../firebase';
+import { firebaseService, DEFAULT_SITE_CONFIG, SiteConfigService } from '../services/centralServices';
 
 interface SiteConfigManagerProps {
   onOpenPreview?: () => void;

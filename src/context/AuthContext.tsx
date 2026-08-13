@@ -5,7 +5,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { UserAccount, UserRole } from '../types_master';
-import { firebaseService } from '../firebase';
+import { firebaseService } from '../services/centralServices';
 
 interface AuthContextType {
   currentUser: UserAccount | null;

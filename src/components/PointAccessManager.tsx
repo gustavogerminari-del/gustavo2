@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import { UserAccount, UserRole, EmployeeAccessPermissions } from '../types_master';
 import { Employee, SaaSCompany } from '../types';
-import { firebaseService } from '../firebase';
+import { firebaseService } from '../services/centralServices';
 
 interface PointAccessManagerProps {
   currentUser: UserAccount | null;

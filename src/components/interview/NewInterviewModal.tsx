@@ -32,7 +32,7 @@ interface NewInterviewModalProps {
 }
 
 const ALL_PLATFORMS: Array<{ id: VideoProvider; name: string; description: string; tag: string }> = [
-  { id: 'GestRH Meeting', name: 'GestRH Meeting (LiveKit)', description: 'Provedor padrão seguro e sem necessidade de login ou chave API', tag: 'Padrão Sistema' },
+  { id: 'RL CONNECT Room', name: 'RL CONNECT Room', description: 'Provedor padrão seguro e sem necessidade de login ou chave API', tag: 'Padrão Sistema' },
   { id: 'Google Meet', name: 'Google Meet', description: 'Reuniões instantâneas sincronizadas com Google Calendar', tag: 'Google Workspace' },
   { id: 'Microsoft Teams', name: 'Microsoft Teams', description: 'Integração direta com o ecossistema Microsoft 365 Corporativo', tag: 'Microsoft 365' },
   { id: 'Zoom', name: 'Zoom Meetings', description: 'Salas virtuais de alta qualidade com Account ID / JWT', tag: 'Zoom Cloud' },
@@ -48,7 +48,7 @@ export default function NewInterviewModal({
   candidates
 }: NewInterviewModalProps) {
 
-  const [companyName, setCompanyName] = useState('GestRH Soluções');
+  const [companyName, setCompanyName] = useState('RL CONNECT');
   const [selectedJobId, setSelectedJobId] = useState(jobs[0]?.id || '');
   const [selectedCandidateId, setSelectedCandidateId] = useState(candidates[0]?.id || '');
   const [candidateNameInput, setCandidateNameInput] = useState('');
@@ -58,7 +58,7 @@ export default function NewInterviewModal({
   const [modality, setModality] = useState<InterviewModality>('Online');
   
   // Platform & Video Integration State
-  const [selectedPlatform, setSelectedPlatform] = useState<VideoProvider>('GestRH Meeting');
+  const [selectedPlatform, setSelectedPlatform] = useState<VideoProvider>('RL CONNECT Room');
   const [locationOrLink, setLocationOrLink] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -82,8 +82,8 @@ export default function NewInterviewModal({
   const handleSelectPlatform = (platform: VideoProvider) => {
     setSelectedPlatform(platform);
 
-    if (platform === 'GestRH Meeting') {
-      const link = VideoIntegrationService.generateMeetingLink('GestRH Meeting');
+    if (platform === 'RL CONNECT Room') {
+      const link = VideoIntegrationService.generateMeetingLink('RL CONNECT Room');
       setLocationOrLink(link);
       return;
     }
@@ -106,8 +106,8 @@ export default function NewInterviewModal({
   };
 
   const handleFallbackToGestRH = () => {
-    setSelectedPlatform('GestRH Meeting');
-    const link = VideoIntegrationService.generateMeetingLink('GestRH Meeting');
+    setSelectedPlatform('RL CONNECT Room');
+    const link = VideoIntegrationService.generateMeetingLink('RL CONNECT Room');
     setLocationOrLink(link);
   };
 

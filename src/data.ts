@@ -420,7 +420,7 @@ export const INITIAL_DOCUMENTS: DocumentFile[] = [
 ];
 
 export const INITIAL_SETTINGS: AppSettings = {
-  companyName: 'Rafaela Lourenço RH & GestRH',
+  companyName: 'RL CONNECT - R Lourenço Recrutamento e Seleção',
   contactEmail: 'contato@rafaelalourenco.com.br',
   phone: '(11) 3456-7890',
   address: 'Av. Paulista, 1000 - Bela Vista, São Paulo - SP',

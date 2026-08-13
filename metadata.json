@@ -1,6 +1,6 @@
 {
-  "name": "Rafaela Lourenço RH",
-  "description": "Plataforma de Recrutamento, Seleção e Gestão de Pessoas (GestRH) com módulo Consultor de RH (Multi-Tenant, CRM, Vagas, Pipeline Kanban, IA de Triagem e Finanças).",
+  "name": "RL CONNECT",
+  "description": "R Lourenço Recrutamento e Seleção - Plataforma de Recrutamento, Seleção e Gestão de Pessoas (Multi-Tenant, Headhunter, Banco de Talentos, Entrevistas, IA, DP e Portal de Vagas)",
   "requestFramePermissions": ["camera", "microphone", "geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

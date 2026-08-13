@@ -291,7 +291,7 @@ export default function InterviewAgendaView({
         ) : (
           <div className="divide-y divide-slate-100">
             {filteredInterviews.map((interview) => {
-              const platform = interview.videoPlatform || 'GestRH Meeting';
+              const platform = interview.videoPlatform || 'RL CONNECT Room';
               const isConn = VideoIntegrationService.isConnected(platform);
 
               return (

@@ -505,7 +505,7 @@ export default function PayrollModule({
         </head>
         <body>
           <div class="header">
-            <div class="logo">Rafaela Lourenço RH & GestRH</div>
+            <div class="logo">RL CONNECT - R Lourenço Recrutamento e Seleção</div>
             <div style="font-size: 11px; text-align: right; color: #64748b;">Mês de Referência: 07/2026</div>
           </div>
           <div class="title">
@@ -541,7 +541,7 @@ export default function PayrollModule({
             </tbody>
           </table>
           <div class="footer">
-            Documento de controle interno gerado em ${new Date().toLocaleDateString('pt-BR')} &bull; GestRH Gestão Integrada de Pessoas CLT & Benefícios
+            Documento de controle interno gerado em ${new Date().toLocaleDateString('pt-BR')} &bull; RL CONNECT Gestão Integrada de Pessoas CLT & Benefícios
           </div>
           <script>
             window.onload = function() {
@@ -1359,7 +1359,7 @@ export default function PayrollModule({
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between md:items-center gap-4">
             <div>
               <h3 className="font-display font-bold text-sm text-slate-800">Demonstrativos Gerados (Holerites Oficiais)</h3>
-              <p className="text-slate-400 text-xs">Os holerites estão devidamente assinados digitalmente pela GestRH e disponíveis para consulta do colaborador ou exportação para o banco.</p>
+              <p className="text-slate-400 text-xs">Os holerites estão devidamente assinados digitalmente pela RL CONNECT e disponíveis para consulta do colaborador ou exportação para o banco.</p>
             </div>
 
             <button

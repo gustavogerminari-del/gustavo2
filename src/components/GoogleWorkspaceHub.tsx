@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Video, MessageSquare, Send, Plus, RefreshCw, LogOut, CheckCircle, AlertCircle, ExternalLink, ShieldAlert } from 'lucide-react';
+import { Mail, Video, MessageSquare, Calendar, Send, Plus, RefreshCw, LogOut, CheckCircle, AlertCircle, ExternalLink, ShieldAlert, Trash2, Clock, UserCheck } from 'lucide-react';
 import { 
   googleSignIn, 
   getAccessToken, 
@@ -7,9 +7,11 @@ import {
   gmailService, 
   meetService, 
   chatService, 
+  calendarService,
   GmailMessage, 
   MeetSpace, 
-  ChatSpace 
+  ChatSpace,
+  CalendarEvent
 } from '../services/googleWorkspaceService';
 
 interface GoogleWorkspaceHubProps {
@@ -18,7 +20,7 @@ interface GoogleWorkspaceHubProps {
 }
 
 export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'gmail' | 'meet' | 'chat'>('gmail');
+  const [activeTab, setActiveTab] = useState<'gmail' | 'calendar' | 'meet' | 'chat'>('gmail');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!getAccessToken());
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
@@ -30,6 +32,20 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({ isOpen, 
   const [emailSubject, setEmailSubject] = useState<string>('');
   const [emailBody, setEmailBody] = useState<string>('');
   const [showEmailConfirmModal, setShowEmailConfirmModal] = useState<boolean>(false);
+
+  // Calendar State
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState<boolean>(false);
+  const [eventSummary, setEventSummary] = useState<string>('');
+  const [eventAttendee, setEventAttendee] = useState<string>('');
+  const [eventDate, setEventDate] = useState<string>('');
+  const [eventTime, setEventTime] = useState<string>('14:00');
+  const [eventDuration, setEventDuration] = useState<number>(45);
+  const [eventDesc, setEventDesc] = useState<string>('');
+  const [eventMeetLink, setEventMeetLink] = useState<boolean>(true);
+  const [showCreateEventConfirmModal, setShowCreateEventConfirmModal] = useState<boolean>(false);
+  const [showDeleteEventModal, setShowDeleteEventModal] = useState<boolean>(false);
+  const [eventToDelete, setEventToDelete] = useState<CalendarEvent | null>(null);
 
   // Meet State
   const [createdMeet, setCreatedMeet] = useState<MeetSpace | null>(null);
@@ -45,6 +61,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({ isOpen, 
   useEffect(() => {
     if (isOpen && isAuthenticated) {
       if (activeTab === 'gmail') loadGmailMessages();
+      if (activeTab === 'calendar') loadCalendarEvents();
       if (activeTab === 'chat') loadChatSpaces();
     }
   }, [isOpen, isAuthenticated, activeTab]);
@@ -71,6 +88,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({ isOpen, 
     await logoutWorkspace();
     setIsAuthenticated(false);
     setMessages([]);
+    setEvents([]);
     setChatSpaces([]);
     setCreatedMeet(null);
     setStatusMessage({ type: 'info', text: 'Sessão do Google encerrada.' });
@@ -87,6 +105,67 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({ isOpen, 
       setStatusMessage({ type: 'error', text: 'Não foi possível carregar as mensagens do Gmail.' });
     } finally {
       setLoadingMessages(false);
+    }
+  };
+
+  const loadCalendarEvents = async () => {
+    if (!isAuthenticated) return;
+    setLoadingEvents(true);
+    try {
+      const evs = await calendarService.listUpcomingEvents(10);
+      setEvents(evs);
+    } catch (err: any) {
+      console.error(err);
+      setStatusMessage({ type: 'error', text: 'Não foi possível carregar eventos do Google Calendar.' });
+    } finally {
+      setLoadingEvents(false);
+    }
+  };
+
+  const confirmCreateEvent = async () => {
+    setShowCreateEventConfirmModal(false);
+    setIsLoading(true);
+    setStatusMessage(null);
+    try {
+      const startDateTime = new Date(`${eventDate}T${eventTime}:00`);
+      const endDateTime = new Date(startDateTime.getTime() + eventDuration * 60000);
+
+      await calendarService.createEvent(
+        eventSummary,
+        eventDesc,
+        startDateTime.toISOString(),
+        endDateTime.toISOString(),
+        eventAttendee ? [eventAttendee] : [],
+        eventMeetLink
+      );
+
+      setStatusMessage({ type: 'success', text: `Entrevista / Evento "${eventSummary}" agendado com sucesso no Google Calendar!` });
+      setEventSummary('');
+      setEventAttendee('');
+      setEventDate('');
+      setEventDesc('');
+      loadCalendarEvents();
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err.message || 'Erro ao agendar no Google Calendar.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const confirmDeleteEvent = async () => {
+    if (!eventToDelete) return;
+    setShowDeleteEventModal(false);
+    setIsLoading(true);
+    setStatusMessage(null);
+    try {
+      await calendarService.deleteEvent(eventToDelete.id);
+      setStatusMessage({ type: 'success', text: 'Evento removido do Google Calendar com sucesso!' });
+      setEventToDelete(null);
+      loadCalendarEvents();
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err.message || 'Erro ao remover evento.' });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -252,6 +331,16 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({ isOpen, 
               </button>
 
               <button
+                onClick={() => setActiveTab('calendar')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition ${
+                  activeTab === 'calendar' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/60'
+                }`}
+              >
+                <Calendar className="h-4 w-4" />
+                <span>Google Calendar</span>
+              </button>
+
+              <button
                 onClick={() => setActiveTab('meet')}
                 className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition ${
                   activeTab === 'meet' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/60'
@@ -374,7 +463,192 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({ isOpen, 
                 </div>
               )}
 
-              {/* TAB 2: GOOGLE MEET */}
+              {/* TAB 2: GOOGLE CALENDAR */}
+              {activeTab === 'calendar' && (
+                <div className="space-y-6">
+                  {/* Create Calendar Event / Interview */}
+                  <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
+                    <h3 className="font-semibold text-slate-800 flex items-center space-x-2">
+                      <Calendar className="h-4 w-4 text-emerald-600" />
+                      <span>Agendar Entrevista / Evento no Google Calendar</span>
+                    </h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="col-span-1 md:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Título do Evento:</label>
+                        <input
+                          type="text"
+                          value={eventSummary}
+                          onChange={e => setEventSummary(e.target.value)}
+                          placeholder="Ex: Entrevista Técnica - Candidato João Silva"
+                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">E-mail do Candidato / Convidado:</label>
+                        <input
+                          type="email"
+                          value={eventAttendee}
+                          onChange={e => setEventAttendee(e.target.value)}
+                          placeholder="candidato@email.com"
+                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1">Data:</label>
+                          <input
+                            type="date"
+                            value={eventDate}
+                            onChange={e => setEventDate(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1">Horário:</label>
+                          <input
+                            type="time"
+                            value={eventTime}
+                            onChange={e => setEventTime(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Duração (minutos):</label>
+                        <select
+                          value={eventDuration}
+                          onChange={e => setEventDuration(Number(e.target.value))}
+                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+                        >
+                          <option value={15}>15 minutos</option>
+                          <option value={30}>30 minutos</option>
+                          <option value={45}>45 minutos</option>
+                          <option value={60}>1 hora</option>
+                          <option value={90}>1h 30min</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Google Meet:</label>
+                        <label className="flex items-center space-x-2 mt-2.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={eventMeetLink}
+                            onChange={e => setEventMeetLink(e.target.checked)}
+                            className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+                          />
+                          <span className="text-xs text-slate-700 font-medium">Gerar link automático do Google Meet</span>
+                        </label>
+                      </div>
+
+                      <div className="col-span-1 md:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Descrição / Pauta:</label>
+                        <textarea
+                          rows={2}
+                          value={eventDesc}
+                          onChange={e => setEventDesc(e.target.value)}
+                          placeholder="Ex: Entrevista com a liderança técnica do time de desenvolvimento..."
+                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        if (!eventSummary || !eventDate || !eventTime) {
+                          setStatusMessage({ type: 'error', text: 'Preencha o título, data e horário do evento.' });
+                          return;
+                        }
+                        setShowCreateEventConfirmModal(true);
+                      }}
+                      disabled={isLoading}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm rounded-lg shadow-sm flex items-center space-x-2 transition cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Agendar no Google Calendar</span>
+                    </button>
+                  </div>
+
+                  {/* Upcoming Calendar Events List */}
+                  <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-slate-800 flex items-center space-x-2">
+                        <Calendar className="h-4 w-4 text-emerald-600" />
+                        <span>Próximos Compromissos e Entrevistas</span>
+                      </h3>
+                      <button
+                        onClick={loadCalendarEvents}
+                        disabled={loadingEvents}
+                        className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-slate-100 rounded-lg transition"
+                        title="Atualizar eventos"
+                      >
+                        <RefreshCw className={`h-4 w-4 ${loadingEvents ? 'animate-spin text-emerald-600' : ''}`} />
+                      </button>
+                    </div>
+
+                    {loadingEvents ? (
+                      <div className="py-8 text-center text-sm text-slate-500">Carregando eventos do Google Calendar...</div>
+                    ) : events.length === 0 ? (
+                      <div className="py-8 text-center text-sm text-slate-500">Nenhum próximo evento agendado no Google Calendar.</div>
+                    ) : (
+                      <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto space-y-2">
+                        {events.map((ev) => (
+                          <div key={ev.id} className="py-3 hover:bg-slate-50 px-3 rounded-xl transition flex items-start justify-between">
+                            <div className="space-y-1">
+                              <h4 className="text-sm font-semibold text-slate-800">{ev.summary}</h4>
+                              <div className="flex items-center space-x-3 text-xs text-slate-500">
+                                <span className="flex items-center space-x-1">
+                                  <Clock className="h-3.5 w-3.5 text-slate-400" />
+                                  <span>
+                                    {ev.start.dateTime
+                                      ? new Date(ev.start.dateTime).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+                                      : ev.start.date}
+                                  </span>
+                                </span>
+                                {ev.attendees && ev.attendees.length > 0 && (
+                                  <span className="flex items-center space-x-1">
+                                    <UserCheck className="h-3.5 w-3.5 text-slate-400" />
+                                    <span>{ev.attendees.length} convidado(s)</span>
+                                  </span>
+                                )}
+                              </div>
+                              {ev.hangoutLink && (
+                                <a
+                                  href={ev.hangoutLink}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center space-x-1 text-xs text-emerald-600 hover:underline font-semibold pt-1"
+                                >
+                                  <Video className="h-3.5 w-3.5" />
+                                  <span>Entrar na chamada (Google Meet)</span>
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              )}
+                            </div>
+
+                            <button
+                              onClick={() => {
+                                setEventToDelete(ev);
+                                setShowDeleteEventModal(true);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                              title="Remover evento"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: GOOGLE MEET */}
               {activeTab === 'meet' && (
                 <div className="space-y-6">
                   <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm text-center space-y-4">
@@ -497,6 +771,73 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({ isOpen, 
           </div>
         )}
       </div>
+
+      {/* CONFIRMATION DIALOG FOR CALENDAR EVENT CREATION */}
+      {showCreateEventConfirmModal && (
+        <div className="fixed inset-0 z-60 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center space-x-3 text-slate-800">
+              <ShieldAlert className="h-6 w-6 text-emerald-600 shrink-0" />
+              <h3 className="font-display font-bold text-lg">Confirmar Agendamento no Google Calendar</h3>
+            </div>
+            <p className="text-sm text-slate-600">
+              Você confirma o agendamento deste evento na sua agenda do Google Calendar? Os convites serão disparados para os participantes indicados.
+            </p>
+            <div className="bg-slate-50 p-3 rounded-lg text-xs space-y-1 text-slate-700">
+              <div><strong>Título:</strong> {eventSummary}</div>
+              <div><strong>Data / Hora:</strong> {eventDate} às {eventTime} ({eventDuration} min)</div>
+              {eventAttendee && <div><strong>Convidado:</strong> {eventAttendee}</div>}
+              {eventMeetLink && <div><strong>Videochamada:</strong> Link do Google Meet incluído</div>}
+            </div>
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                onClick={() => setShowCreateEventConfirmModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmCreateEvent}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow transition"
+              >
+                Confirmar Agendamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRMATION DIALOG FOR CALENDAR EVENT DELETION */}
+      {showDeleteEventModal && eventToDelete && (
+        <div className="fixed inset-0 z-60 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center space-x-3 text-red-600">
+              <ShieldAlert className="h-6 w-6 text-red-600 shrink-0" />
+              <h3 className="font-display font-bold text-lg text-slate-800">Remover Evento do Google Calendar</h3>
+            </div>
+            <p className="text-sm text-slate-600">
+              Tem certeza de que deseja excluir o evento <strong>"{eventToDelete.summary}"</strong> do seu Google Calendar? Esta ação não poderá ser desfeita.
+            </p>
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                onClick={() => {
+                  setShowDeleteEventModal(false);
+                  setEventToDelete(null);
+                }}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDeleteEvent}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg shadow transition"
+              >
+                Excluir Evento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CONFIRMATION DIALOG FOR GMAIL SEND */}
       {showEmailConfirmModal && (

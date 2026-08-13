@@ -3,9 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { firestoreDb, safeFirestoreGetDoc, safeFirestoreSetDoc } from '../firebase';
-import { doc } from 'firebase/firestore';
-
 export interface MenuItemCustomization {
   id: string;
   originalLabel: string;
@@ -187,30 +184,12 @@ export const layoutService = {
 
   // Async load from Firestore with local storage fallback
   async loadCompanyLayoutAsync(companyId: string, companyName: string = 'Empresa'): Promise<CompanyLayoutConfig> {
-    try {
-      const snap = await safeFirestoreGetDoc(doc(firestoreDb, 'COMPANY_LAYOUTS', companyId));
-      if (snap && typeof snap.exists === 'function' && snap.exists()) {
-        const remoteLayout = snap.data() as CompanyLayoutConfig;
-        
-        // Update local storage cache
-        const stored = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
-        const layouts: Record<string, CompanyLayoutConfig> = stored ? JSON.parse(stored) : {};
-        layouts[companyId] = remoteLayout;
-        localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(layouts));
-
-        this.applyCompanyStylesToDOM(remoteLayout);
-        return remoteLayout;
-      }
-    } catch (e) {
-      console.warn('Firestore load notice for company layout:', e);
-    }
-
     const local = this.getCompanyLayout(companyId, companyName);
     this.applyCompanyStylesToDOM(local);
     return local;
   },
 
-  // Save layout & record history version (Saves locally AND to Firestore)
+  // Save layout & record history version (Saves locally)
   saveCompanyLayout(layout: CompanyLayoutConfig, updatedBy: string = 'MASTER', changeSummary: string = 'Atualização de layout'): CompanyLayoutConfig {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
@@ -228,9 +207,6 @@ export const layoutService = {
 
       layouts[layout.companyId] = updatedLayout;
       localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(layouts));
-
-      // Save to Firestore asynchronously with timeout
-      safeFirestoreSetDoc(doc(firestoreDb, 'COMPANY_LAYOUTS', layout.companyId), updatedLayout);
 
       // Record history entry
       this.addHistoryEntry({
@@ -271,9 +247,6 @@ export const layoutService = {
 
       layouts[layout.companyId] = updatedLayout;
       localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(layouts));
-
-      // Save to Firestore asynchronously with timeout
-      safeFirestoreSetDoc(doc(firestoreDb, 'COMPANY_LAYOUTS', layout.companyId), updatedLayout);
 
       this.applyCompanyStylesToDOM(updatedLayout);
 

@@ -8,8 +8,8 @@ import {
   SuggestedDecision 
 } from '../types_interview';
 
-const STORAGE_KEY = 'gestrh_smart_interviews_v1';
-const SETTINGS_KEY = 'gestrh_interview_settings_v1';
+const STORAGE_KEY = 'rl_connect_smart_interviews_v1';
+const SETTINGS_KEY = 'rl_connect_interview_settings_v1';
 
 export const ALL_COMPETENCY_METADATA: Array<{ key: CompetencyKey; label: string; category: 'Técnica' | 'Comportamental' | 'Gestão' }> = [
   { key: 'comunicacao', label: 'Comunicação', category: 'Comportamental' },
@@ -482,44 +482,44 @@ export class InterviewService {
       { id: '6', speaker: 'Candidato' as const, timestamp: '00:25:30', text: `Busco um ambiente transparente, inovador e com autonomia para propor melhorias continuadas.`, topic: 'Fit Cultural' }
     ];
 
+    const hasRealTranscript = interview.transcript && interview.transcript.length > 0;
+
     const updated = await this.updateInterview(interviewId, {
       status: baseScore >= 8.0 ? 'Aprovada' : 'Finalizada',
-      transcript: generatedTranscript,
-      transcriptSummary: `A entrevista com ${interview.candidateName} para o cargo de ${interview.jobTitle} foi extremamente produtiva. O candidato articulou com facilidade suas competências e apresentou resolução clara para os estudos de caso.`,
-      topics: [
-        { title: 'Apresentação & Trajetória', summary: 'Resumo da carreira e principais motivações.', startTime: '00:00', endTime: '08:00' },
-        { title: 'Resolução de Problemas', summary: 'Discussão sobre situação de crise e gestão técnica sob pressão.', startTime: '08:00', endTime: '22:00' },
-        { title: 'Fit Cultural & Futuro', summary: 'Expectativas de ambiente de trabalho e valores profissionais.', startTime: '22:00', endTime: '35:00' }
-      ],
+      transcript: hasRealTranscript ? interview.transcript : [],
+      transcriptSummary: hasRealTranscript 
+        ? `Síntese da entrevista com ${interview.candidateName} para o cargo de ${interview.jobTitle}.`
+        : 'Transcrição ainda não disponível.',
+      topics: hasRealTranscript ? interview.topics : [],
       competencies: mockCompetencies,
       overallScore: baseScore,
       jobCompatibility: compScore,
       strengths: [
-        `Forte domínio de competências ligadas a ${interview.jobTitle}`,
-        'Comunicação assertiva e postura profissional impecável',
-        'Capacidade de manter a calma e liderar sob alta pressão'
+        `Aderência às competências principais de ${interview.jobTitle}`,
+        'Comunicação clara e objetiva',
+        'Experiência técnica prévia alinhada'
       ],
       improvements: [
-        'Acompanhar de perto a adaptação às ferramentas específicas da empresa'
+        'Validar aspectos operacionais adicionais em 2ª etapa'
       ],
       identifiedSkills: {
-        softSkills: ['Comunicação', 'Resolução de Problemas', 'Resiliência', 'Trabalho em Equipe'],
-        hardSkills: ['Análise de Sistemas', 'Gestão de Projetos', 'Metodologias Ágeis', 'Excel / BI'],
-        languages: ['Português (Nativo)', 'Inglês (Avançado)'],
-        courses: ['Especialização Executiva em RH/TI', 'Certificação Ágil'],
-        tools: ['Jira', 'Slack', 'Power BI', 'Google Workspace'],
-        certifications: ['Certificação Profissional']
+        softSkills: ['Comunicação', 'Resolução de Problemas', 'Trabalho em Equipe'],
+        hardSkills: ['Análise de Processos', 'Gestão de Projetos'],
+        languages: ['Português (Nativo)'],
+        courses: ['Formação na área'],
+        tools: ['Google Workspace'],
+        certifications: []
       },
       finalParecer: {
-        summary: `O candidato ${interview.candidateName} atende satisfatoriamente os requisitos para a posição de ${interview.jobTitle}.`,
-        conclusion: 'Demonstrou alto alinhamento comportamental e preparo técnico consistente durante toda a sessão.',
-        recommendation: baseScore >= 8.0 ? 'Aprovação recomendada para a contratação final.' : 'Encaminhar para 2ª entrevista de alinhamento.',
-        risks: ['Risco muito baixo.'],
-        potential: 'Excelente potencial para crescimento na empresa.'
+        summary: `Análise técnica e comportamental do candidato ${interview.candidateName} para a vaga ${interview.jobTitle}.`,
+        conclusion: baseScore >= 8.0 ? 'Apresenta boa aderência aos requisitos declarados.' : 'Necessita de validação complementar pelo recrutador.',
+        recommendation: baseScore >= 8.0 ? '🟢 Boa aderência' : '🟡 Necessita validação adicional',
+        risks: ['Baixo risco identificado com base no perfil.'],
+        potential: 'Potencial positivo para evolução nas responsabilidades do cargo.'
       },
       suggestedDecision: (baseScore >= 8.5 ? 'Aprovado' : baseScore >= 7.5 ? 'Segunda Entrevista' : 'Banco de Talentos') as SuggestedDecision,
       finalDecision: (baseScore >= 8.5 ? 'Aprovado' : baseScore >= 7.5 ? 'Segunda Entrevista' : 'Banco de Talentos') as SuggestedDecision,
-      decisionNotes: 'Sugerido pela Inteligência Artificial do GestRH.'
+      decisionNotes: 'Análise gerada com auxílio da Inteligência Artificial RL CONNECT.'
     });
 
     return updated!;

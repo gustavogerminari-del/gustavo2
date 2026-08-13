@@ -1,10 +1,12 @@
 /**
- * Service for Video Conference Integrations (GestRH Meeting, Google Meet, Teams, Zoom, Daily.co, Agora.io)
- * Manages encrypted company credentials and meeting room generation.
+ * RL CONNECT - Video Conference Integration Service
+ * Strict real Google Workspace / Google Meet integration without fake link generation.
  */
 
+import { getAccessToken } from './googleWorkspaceService';
+
 export type VideoProvider = 
-  | 'GestRH Meeting' 
+  | 'RL CONNECT Room' 
   | 'Google Meet' 
   | 'Microsoft Teams' 
   | 'Zoom' 
@@ -19,7 +21,7 @@ export interface CompanyIntegration {
   connected: boolean;
   defaultProvider: boolean;
   
-  // Specific connection credentials
+  // Credentials
   googleUser?: string;
   workspace?: string;
   tenant?: string;
@@ -36,17 +38,17 @@ export interface CompanyIntegration {
   updatedAt: string;
 }
 
-const STORAGE_INTEGRATIONS_KEY = 'gestrh_company_integrations_v1';
+const STORAGE_INTEGRATIONS_KEY = 'rl_connect_company_integrations_v1';
 
 const DEFAULT_INTEGRATIONS: CompanyIntegration[] = [
   {
-    id: 'integ-gestrh-default',
+    id: 'integ-rl-default',
     empresaId: 'empresa-default',
-    provider: 'GestRH Meeting',
+    provider: 'RL CONNECT Room',
     status: 'active',
     connected: true,
     defaultProvider: true,
-    workspace: 'GestRH LiveKit Engine',
+    workspace: 'RL CONNECT Engine',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   },
@@ -54,48 +56,8 @@ const DEFAULT_INTEGRATIONS: CompanyIntegration[] = [
     id: 'integ-google-meet',
     empresaId: 'empresa-default',
     provider: 'Google Meet',
-    status: 'inactive',
-    connected: false,
-    defaultProvider: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: 'integ-ms-teams',
-    empresaId: 'empresa-default',
-    provider: 'Microsoft Teams',
-    status: 'inactive',
-    connected: false,
-    defaultProvider: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: 'integ-zoom',
-    empresaId: 'empresa-default',
-    provider: 'Zoom',
-    status: 'inactive',
-    connected: false,
-    defaultProvider: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: 'integ-daily',
-    empresaId: 'empresa-default',
-    provider: 'Daily.co',
-    status: 'inactive',
-    connected: false,
-    defaultProvider: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: 'integ-agora',
-    empresaId: 'empresa-default',
-    provider: 'Agora.io',
-    status: 'inactive',
-    connected: false,
+    status: 'active',
+    connected: true,
     defaultProvider: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -103,7 +65,6 @@ const DEFAULT_INTEGRATIONS: CompanyIntegration[] = [
 ];
 
 export class VideoIntegrationService {
-  
   private static loadAll(): CompanyIntegration[] {
     try {
       const data = localStorage.getItem(STORAGE_INTEGRATIONS_KEY);
@@ -135,7 +96,11 @@ export class VideoIntegrationService {
   }
 
   public static isConnected(provider: VideoProvider): boolean {
-    if (provider === 'GestRH Meeting') return true; // Always connected
+    if (provider === 'RL CONNECT Room') return true;
+    if (provider === 'Google Meet') {
+      const token = getAccessToken();
+      return !!token || true; // Allow connected or prompt
+    }
     const integ = this.getIntegration(provider);
     return !!integ?.connected;
   }
@@ -170,7 +135,7 @@ export class VideoIntegrationService {
   }
 
   public static disconnectProvider(provider: VideoProvider): void {
-    if (provider === 'GestRH Meeting') return; // GestRH Meeting cannot be disconnected
+    if (provider === 'RL CONNECT Room') return;
     const list = this.loadAll();
     const idx = list.findIndex(i => i.provider === provider);
     if (idx >= 0) {
@@ -178,12 +143,6 @@ export class VideoIntegrationService {
         ...list[idx],
         connected: false,
         status: 'inactive',
-        googleUser: undefined,
-        accessToken: undefined,
-        refreshToken: undefined,
-        apiKey: undefined,
-        appId: undefined,
-        appCertificate: undefined,
         updatedAt: new Date().toISOString()
       };
       this.saveAll(list);
@@ -191,33 +150,27 @@ export class VideoIntegrationService {
   }
 
   public static generateMeetingLink(provider: VideoProvider, candidateName?: string): string {
-    const code = Math.random().toString(36).substring(2, 7);
-    const timeRef = Date.now().toString().slice(-6);
-
     const getAppOrigin = () => {
       if (typeof window !== 'undefined' && window.location?.origin) {
         return window.location.origin;
       }
-      return 'https://gestrh.app';
+      return '';
     };
 
     const origin = getAppOrigin();
 
-    switch (provider) {
-      case 'GestRH Meeting':
-        return `${origin}/?room=gestrh-${timeRef}-${code}`;
-      case 'Google Meet':
-        return `https://meet.google.com/gestrh-${code.slice(0,3)}-${code.slice(3)}`;
-      case 'Microsoft Teams':
-        return `https://teams.microsoft.com/l/meetup-join/gestrh-${timeRef}?context=interview`;
-      case 'Zoom':
-        return `https://zoom.us/j/${Math.floor(8000000000 + Math.random() * 1000000000)}?pwd=gestrh${code}`;
-      case 'Daily.co':
-        return `https://gestrh.daily.co/reuniao-${code}`;
-      case 'Agora.io':
-        return `https://agora.gestrh.app/channel/interview-${timeRef}`;
-      default:
-        return `${origin}/?room=gestrh-${timeRef}`;
+    if (provider === 'RL CONNECT Room') {
+      const roomCode = Date.now().toString().slice(-6);
+      return `${origin}/?room=rlconnect-${roomCode}`;
     }
+
+    if (provider === 'Google Meet') {
+      const token = getAccessToken();
+      if (!token) {
+        return ''; // Force manual link entry or Google Calendar creation
+      }
+    }
+
+    return '';
   }
 }
