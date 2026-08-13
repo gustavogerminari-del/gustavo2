@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { firestoreDb } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { firestoreDb, safeFirestoreGetDoc, safeFirestoreSetDoc } from '../firebase';
+import { doc } from 'firebase/firestore';
 
 export interface GlobalDesignSystemConfig {
   id: string;
@@ -303,9 +303,9 @@ export const DEFAULT_GLOBAL_DESIGN: GlobalDesignSystemConfig = {
   version: 1,
   systemName: 'GestRH Ecosystem',
   logoUrl: '',
-  primaryColor: '#059669',
-  secondaryColor: '#0f172a',
-  accentColor: '#f59e0b',
+  primaryColor: '#475569',
+  secondaryColor: '#1e293b',
+  accentColor: '#38bdf8',
   backgroundColorLight: '#f8fafc',
   backgroundColorDark: '#0b0f19',
   textColorLight: '#0f172a',
@@ -317,7 +317,7 @@ export const DEFAULT_GLOBAL_DESIGN: GlobalDesignSystemConfig = {
   buttonStyle: 'shadow',
   cardShadow: 'md',
   headerBgColor: '#ffffff',
-  sidebarBgColor: '#0f172a',
+  sidebarBgColor: '#1e293b',
   sidebarTextColor: '#f8fafc',
   customPages: [
     {
@@ -382,14 +382,14 @@ export const visualBuilderService = {
   async loadGlobalConfig(): Promise<GlobalDesignSystemConfig> {
     try {
       // 1. Try Firestore first
-      const snap = await getDoc(doc(firestoreDb, 'SYSTEM_DESIGNER', 'global_master_designer'));
-      if (snap.exists()) {
+      const snap = await safeFirestoreGetDoc(doc(firestoreDb, 'SYSTEM_DESIGNER', 'global_master_designer'));
+      if (snap && typeof snap.exists === 'function' && snap.exists()) {
         const data = snap.data() as GlobalDesignSystemConfig;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         return data;
       }
     } catch (e) {
-      console.warn('Firestore load failed for global design system, falling back to localStorage:', e);
+      console.warn('Firestore load notice for global design system:', e);
     }
 
     try {
@@ -427,12 +427,8 @@ export const visualBuilderService = {
       config: JSON.parse(JSON.stringify(updatedConfig))
     });
 
-    // Save to Firestore asynchronously
-    try {
-      await setDoc(doc(firestoreDb, 'SYSTEM_DESIGNER', 'global_master_designer'), updatedConfig);
-    } catch (e) {
-      console.error('Error saving global designer config to Firestore:', e);
-    }
+    // Save to Firestore asynchronously with timeout
+    await safeFirestoreSetDoc(doc(firestoreDb, 'SYSTEM_DESIGNER', 'global_master_designer'), updatedConfig);
 
     // Apply global CSS rules dynamically to document
     this.applyGlobalStylesToDOM(updatedConfig);
@@ -475,10 +471,8 @@ export const visualBuilderService = {
       if (logs.length > 50) logs.pop();
       localStorage.setItem(AI_LOGS_KEY, JSON.stringify(logs));
 
-      // Asynchronously save log to Firestore
-      setDoc(doc(firestoreDb, 'SYSTEM_DESIGNER_AI_LOGS', entry.id), entry).catch(err => {
-        console.warn('Firestore AI log save ignored:', err);
-      });
+      // Asynchronously save log to Firestore with timeout
+      safeFirestoreSetDoc(doc(firestoreDb, 'SYSTEM_DESIGNER_AI_LOGS', entry.id), entry);
     } catch (e) {
       console.error('Error saving AI log:', e);
     }
@@ -573,11 +567,7 @@ export const visualBuilderService = {
     localStorage.setItem(CLIENT_MODELS_KEY, JSON.stringify(newList));
 
     // Save to Firestore asynchronously under CLIENTS_MODELS collection
-    try {
-      await setDoc(doc(firestoreDb, 'CLIENTS_MODELS', updatedModel.id), updatedModel);
-    } catch (e) {
-      console.error('Error saving client model to Firestore:', e);
-    }
+    safeFirestoreSetDoc(doc(firestoreDb, 'CLIENTS_MODELS', updatedModel.id), updatedModel);
 
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('gestrh_client_models_changed', { detail: newList }));
@@ -609,11 +599,7 @@ export const visualBuilderService = {
     const newList = [newModel, ...currentList];
     localStorage.setItem(CLIENT_MODELS_KEY, JSON.stringify(newList));
 
-    try {
-      await setDoc(doc(firestoreDb, 'CLIENTS_MODELS', newModel.id), newModel);
-    } catch (e) {
-      console.error('Error duplicating client model in Firestore:', e);
-    }
+    safeFirestoreSetDoc(doc(firestoreDb, 'CLIENTS_MODELS', newModel.id), newModel);
 
     return { list: newList, newModel };
   },

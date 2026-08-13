@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { firestoreDb } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { firestoreDb, safeFirestoreGetDoc, safeFirestoreSetDoc } from '../firebase';
+import { doc } from 'firebase/firestore';
 
 export interface MenuItemCustomization {
   id: string;
@@ -149,8 +149,8 @@ export function createDefaultCompanyLayout(companyId: string, companyName: strin
     identity: {
       displayName: companyName,
       logoUrl: '',
-      primaryColor: '#059669', // Emerald default
-      secondaryColor: '#0f172a',
+      primaryColor: '#475569', // Elegant Gray (Slate 600)
+      secondaryColor: '#1e293b', // Charcoal Slate Gray (Slate 800)
       themeMode: 'light'
     },
     menus: DEFAULT_MENUS.map(m => ({ ...m })),
@@ -168,7 +168,15 @@ export const layoutService = {
       if (stored) {
         const layouts: Record<string, CompanyLayoutConfig> = JSON.parse(stored);
         if (layouts[companyId]) {
-          return layouts[companyId];
+          const l = layouts[companyId];
+          // Auto migrate legacy emerald colors to Elegant Gray if default
+          if (l.identity && (l.identity.primaryColor === '#059669' || !l.identity.primaryColor)) {
+            l.identity.primaryColor = '#475569';
+          }
+          if (l.identity && (l.identity.secondaryColor === '#0f172a' || l.identity.secondaryColor === '#047857' || !l.identity.secondaryColor)) {
+            l.identity.secondaryColor = '#1e293b';
+          }
+          return l;
         }
       }
     } catch (e) {
@@ -180,8 +188,8 @@ export const layoutService = {
   // Async load from Firestore with local storage fallback
   async loadCompanyLayoutAsync(companyId: string, companyName: string = 'Empresa'): Promise<CompanyLayoutConfig> {
     try {
-      const snap = await getDoc(doc(firestoreDb, 'COMPANY_LAYOUTS', companyId));
-      if (snap.exists()) {
+      const snap = await safeFirestoreGetDoc(doc(firestoreDb, 'COMPANY_LAYOUTS', companyId));
+      if (snap && typeof snap.exists === 'function' && snap.exists()) {
         const remoteLayout = snap.data() as CompanyLayoutConfig;
         
         // Update local storage cache
@@ -194,7 +202,7 @@ export const layoutService = {
         return remoteLayout;
       }
     } catch (e) {
-      console.warn('Firestore load failed for company layout, falling back to local storage:', e);
+      console.warn('Firestore load notice for company layout:', e);
     }
 
     const local = this.getCompanyLayout(companyId, companyName);
@@ -221,10 +229,8 @@ export const layoutService = {
       layouts[layout.companyId] = updatedLayout;
       localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(layouts));
 
-      // Save to Firestore asynchronously
-      setDoc(doc(firestoreDb, 'COMPANY_LAYOUTS', layout.companyId), updatedLayout)
-        .then(() => console.log(`✓ Company layout for ${layout.companyId} synced to Firestore`))
-        .catch(err => console.error('Error saving company layout to Firestore:', err));
+      // Save to Firestore asynchronously with timeout
+      safeFirestoreSetDoc(doc(firestoreDb, 'COMPANY_LAYOUTS', layout.companyId), updatedLayout);
 
       // Record history entry
       this.addHistoryEntry({
@@ -266,9 +272,8 @@ export const layoutService = {
       layouts[layout.companyId] = updatedLayout;
       localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(layouts));
 
-      // Save to Firestore asynchronously
-      setDoc(doc(firestoreDb, 'COMPANY_LAYOUTS', layout.companyId), updatedLayout)
-        .catch(err => console.warn('Firestore draft sync warning:', err));
+      // Save to Firestore asynchronously with timeout
+      safeFirestoreSetDoc(doc(firestoreDb, 'COMPANY_LAYOUTS', layout.companyId), updatedLayout);
 
       this.applyCompanyStylesToDOM(updatedLayout);
 
@@ -294,8 +299,8 @@ export const layoutService = {
       document.head.appendChild(styleTag);
     }
 
-    const primaryHex = layout.identity?.primaryColor || '#059669';
-    const secondaryHex = layout.identity?.secondaryColor || '#0f172a';
+    const primaryHex = layout.identity?.primaryColor || '#475569';
+    const secondaryHex = layout.identity?.secondaryColor || '#1e293b';
 
     styleTag.innerHTML = `
       :root {

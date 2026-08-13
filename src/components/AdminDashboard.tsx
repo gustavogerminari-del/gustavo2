@@ -125,6 +125,7 @@ import TaxTablesModule from './TaxTablesModule';
 import EmployeePortalRequestsModal from './EmployeePortalRequestsModal';
 import ConsultorRHModule from './ConsultorRHModule';
 import SmartInterviewModule from './interview/SmartInterviewModule';
+import { GoogleWorkspaceHub } from './GoogleWorkspaceHub';
 
 interface AdminDashboardProps {
   employees: Employee[];
@@ -216,6 +217,8 @@ export default function AdminDashboard({
   });
 
   const [consultorSubTab, setConsultorSubTab] = useState<string>('dashboard');
+  const [isWorkspaceHubOpen, setIsWorkspaceHubOpen] = useState<boolean>(false);
+  const [isAiAssistantOpen, setIsAiAssistantOpen] = useState<boolean>(false);
 
   // --- ROLE AND MULTI-TENANT ISOLATION SHADOWING ---
   const matchedEmployee = useMemo(() => {
@@ -1265,14 +1268,14 @@ export default function AdminDashboard({
       {/* Mobile Top Bar */}
       <div 
         id="admin-mobile-header"
-        style={{ backgroundColor: companyLayout?.identity?.secondaryColor || '#047857' }}
+        style={{ backgroundColor: companyLayout?.identity?.secondaryColor || '#1e293b' }}
         className="text-white p-4 flex md:hidden items-center justify-between border-b border-white/10 shadow-md"
       >
         <div className="flex items-center space-x-2">
           {companyLayout?.identity?.logoUrl ? (
             <img src={companyLayout.identity.logoUrl} alt="Logo" className="h-6 w-auto object-contain rounded" />
           ) : (
-            <Building2 className="h-6 w-6 text-emerald-300" />
+            <Building2 className="h-6 w-6 text-slate-300" />
           )}
           <span className="font-display font-bold text-base">{companyLayout?.identity?.displayName || 'GestRH'}</span>
         </div>
@@ -1287,7 +1290,7 @@ export default function AdminDashboard({
       {/* --- SIDEBAR LAYOUT --- */}
       <aside 
         id="admin-main-sidebar"
-        style={{ backgroundColor: companyLayout?.identity?.secondaryColor || '#047857' }}
+        style={{ backgroundColor: companyLayout?.identity?.secondaryColor || '#1e293b' }}
         className={`
           fixed md:static inset-y-0 left-0 z-40 w-64 text-white flex flex-col justify-between 
           transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 
@@ -1303,7 +1306,7 @@ export default function AdminDashboard({
               ) : (
                 <div 
                   className="p-2 rounded-xl text-white shadow-sm"
-                  style={{ backgroundColor: companyLayout?.identity?.primaryColor || '#059669' }}
+                  style={{ backgroundColor: companyLayout?.identity?.primaryColor || '#475569' }}
                 >
                   <Building2 className="h-5 w-5" />
                 </div>
@@ -1330,7 +1333,7 @@ export default function AdminDashboard({
               {(!currentUser || currentUser.role !== 'Funcionário') && isMenuVisible('dashboard') && (
                 <button
                   onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
-                  className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-left transition-all ${activeTab === 'dashboard' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                  className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-left transition-all ${activeTab === 'dashboard' ? 'bg-slate-700 text-white shadow-md shadow-slate-950/20 font-bold border border-slate-600/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                 >
                   <Sliders className="h-4 w-4 shrink-0" />
                   <span>{getCustomMenuLabel('dashboard', 'Dashboard Principal')}</span>
@@ -1340,17 +1343,17 @@ export default function AdminDashboard({
 
             {/* 2. GESTÃO DE PESSOAS */}
             {(!currentUser || currentUser.role !== 'Funcionário') && (
-              <div className="space-y-1 pt-2 border-t border-emerald-700/50">
-                <div className="px-3 text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider mb-1">
+              <div className="space-y-1 pt-2 border-t border-slate-800">
+                <div className="px-3 text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider mb-1">
                   👥 Gestão de Pessoas
                 </div>
 
                 {releasedModules.includes('mod-1') && isMenuVisible('funcionarios') && (
                   <button
                     onClick={() => { setActiveTab('funcionarios'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'funcionarios' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'funcionarios' ? 'bg-slate-700 text-white shadow-md font-bold border border-slate-600/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                   >
-                    <Users className="h-4 w-4 shrink-0" />
+                    <Users className="h-4 w-4 shrink-0 text-slate-400" />
                     <span>{getCustomMenuLabel('funcionarios', 'Funcionários')}</span>
                   </button>
                 )}
@@ -1358,9 +1361,9 @@ export default function AdminDashboard({
                 {releasedModules.includes('mod-11') && (
                   <button
                     onClick={() => { setActiveTab('contratacao'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'contratacao' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'contratacao' ? 'bg-slate-700 text-white shadow-md font-bold border border-slate-600/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                   >
-                    <FileSignature className="h-4 w-4 shrink-0 text-emerald-300" />
+                    <FileSignature className="h-4 w-4 shrink-0 text-slate-400" />
                     <span className="flex-1">Contratação & Onboarding</span>
                   </button>
                 )}
@@ -1368,9 +1371,9 @@ export default function AdminDashboard({
                 {releasedModules.includes('mod-12') && (
                   <button
                     onClick={() => { setActiveTab('rescisao'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'rescisao' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'rescisao' ? 'bg-slate-700 text-white shadow-md font-bold border border-slate-600/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                   >
-                    <UserMinus className="h-4 w-4 shrink-0 text-emerald-300" />
+                    <UserMinus className="h-4 w-4 shrink-0 text-slate-400" />
                     <span className="flex-1">Rescisões & Offboarding</span>
                   </button>
                 )}
@@ -1379,8 +1382,8 @@ export default function AdminDashboard({
 
             {/* 3. RECRUTAMENTO E SELEÇÃO */}
             {(!currentUser || currentUser.role !== 'Funcionário') && (releasedModules.includes('mod-2') || releasedModules.includes('mod-3') || releasedModules.includes('mod-15')) && (
-              <div className="space-y-1 pt-2 border-t border-emerald-700/50">
-                <div className="px-3 text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider mb-1">
+              <div className="space-y-1 pt-2 border-t border-slate-800">
+                <div className="px-3 text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider mb-1">
                   🎯 Recrutamento e Seleção
                 </div>
 
@@ -1388,17 +1391,17 @@ export default function AdminDashboard({
                   <>
                     <button
                       onClick={() => { setActiveTab('vagas'); setIsSidebarOpen(false); }}
-                      className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'vagas' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                      className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'vagas' ? 'bg-slate-700 text-white shadow-md font-bold border border-slate-600/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                     >
-                      <Briefcase className="h-4 w-4 shrink-0 text-emerald-300" />
+                      <Briefcase className="h-4 w-4 shrink-0 text-slate-400" />
                       <span className="flex-1">Vagas de Emprego</span>
                     </button>
 
                     <button
                       onClick={() => { setActiveTab('triagem'); setIsSidebarOpen(false); }}
-                      className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'triagem' || activeTab === 'recrutamento' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                      className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'triagem' || activeTab === 'recrutamento' ? 'bg-slate-700 text-white shadow-md font-bold border border-slate-600/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                     >
-                      <Filter className="h-4 w-4 shrink-0 text-emerald-300" />
+                      <Filter className="h-4 w-4 shrink-0 text-slate-400" />
                       <span className="flex-1">Triagem & Pipeline</span>
                     </button>
                   </>
@@ -1407,7 +1410,7 @@ export default function AdminDashboard({
                 {releasedModules.includes('mod-15') && (
                   <button
                     onClick={() => { setActiveTab('entrevistas-ia'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'entrevistas-ia' ? 'bg-amber-500 text-slate-950 font-bold shadow-lg shadow-amber-500/20' : 'text-amber-300 hover:bg-emerald-600/50'}`}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'entrevistas-ia' ? 'bg-amber-500 text-slate-950 font-bold shadow-lg shadow-amber-500/20' : 'text-amber-300 hover:bg-slate-800/80'}`}
                   >
                     <Sparkles className="h-4 w-4 shrink-0 text-amber-300" />
                     <span className="flex-1 font-bold">Entrevista Inteligente (IA)</span>
@@ -1420,9 +1423,9 @@ export default function AdminDashboard({
                 {releasedModules.includes('mod-3') && (
                   <button
                     onClick={() => { setActiveTab('banco-talentos'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'banco-talentos' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'banco-talentos' ? 'bg-slate-700 text-white shadow-md font-bold border border-slate-600/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                   >
-                    <Users className="h-4 w-4 shrink-0 text-emerald-300" />
+                    <Users className="h-4 w-4 shrink-0 text-slate-400" />
                     <span className="flex-1">Banco de Talentos</span>
                   </button>
                 )}
@@ -1431,25 +1434,25 @@ export default function AdminDashboard({
 
             {/* 4. JORNADA E PONTO */}
             {releasedModules.includes('mod-6') && (
-              <div className="space-y-1 pt-2 border-t border-emerald-700/50">
-                <div className="px-3 text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider mb-1">
+              <div className="space-y-1 pt-2 border-t border-slate-800">
+                <div className="px-3 text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider mb-1">
                   ⏰ Jornada e Ponto
                 </div>
 
                 <button
                   onClick={() => { setActiveTab('ponto'); setIsSidebarOpen(false); }}
-                  className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'ponto' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                  className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'ponto' ? 'bg-slate-700 text-white shadow-md font-bold border border-slate-600/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                 >
-                  <Clock className="h-4 w-4 shrink-0" />
+                  <Clock className="h-4 w-4 shrink-0 text-slate-400" />
                   <span>{currentUser?.role === 'Funcionário' ? 'Meu Ponto' : 'Ponto Eletrônico'}</span>
                 </button>
 
                 {(!currentUser || currentUser.role !== 'Funcionário') && (
                   <button
                     onClick={() => { setActiveTab('acessos-ponto'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'acessos-ponto' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'acessos-ponto' ? 'bg-slate-700 text-white shadow-md font-bold border border-slate-600/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                   >
-                    <Lock className="h-4 w-4 shrink-0 text-emerald-200" />
+                    <Lock className="h-4 w-4 shrink-0 text-slate-400" />
                     <span className="flex-1">Acessos ao Ponto</span>
                   </button>
                 )}
@@ -1457,9 +1460,9 @@ export default function AdminDashboard({
                 {(!currentUser || currentUser.role !== 'Funcionário' || (currentUser.role as string) === 'Coordenador') && currentUser?.role !== 'Consultor RH' && (currentUser?.role as string) !== 'Consultor de RH' && (
                   <button
                     onClick={() => { setActiveTab('aprovacoes'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'aprovacoes' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'aprovacoes' ? 'bg-slate-700 text-white shadow-md font-bold border border-slate-600/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                   >
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-slate-400" />
                     <span className="flex-1">Aprovações & Horas Extras</span>
                   </button>
                 )}
@@ -1468,17 +1471,17 @@ export default function AdminDashboard({
 
             {/* 5. FOLHA DE PAGAMENTO & BENEFÍCIOS */}
             {(releasedModules.includes('mod-7') || releasedModules.includes('mod-9')) && (
-              <div className="space-y-1 pt-2 border-t border-emerald-700/50">
-                <div className="px-3 text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider mb-1">
+              <div className="space-y-1 pt-2 border-t border-slate-800">
+                <div className="px-3 text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider mb-1">
                   💰 Folha e Benefícios
                 </div>
 
                 {releasedModules.includes('mod-7') && (
                   <button
                     onClick={() => { setActiveTab('folha'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'folha' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'folha' ? 'bg-slate-700 text-white shadow-md font-bold border border-slate-600/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                   >
-                    <Wallet className="h-4 w-4 shrink-0" />
+                    <Wallet className="h-4 w-4 shrink-0 text-slate-400" />
                     <span>{currentUser?.role === 'Funcionário' ? 'Meus Holerites' : 'Folha de Pagamento'}</span>
                   </button>
                 )}
@@ -1486,9 +1489,9 @@ export default function AdminDashboard({
                 {(!currentUser || currentUser.role !== 'Funcionário') && releasedModules.includes('mod-9') && (
                   <button
                     onClick={() => { setActiveTab('beneficios'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'beneficios' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'beneficios' ? 'bg-slate-700 text-white shadow-md font-bold border border-slate-600/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                   >
-                    <Heart className="h-4 w-4 shrink-0 text-emerald-300" />
+                    <Heart className="h-4 w-4 shrink-0 text-slate-400" />
                     <span className="flex-1">Gestão de Benefícios</span>
                   </button>
                 )}
@@ -1497,24 +1500,24 @@ export default function AdminDashboard({
 
             {/* 6. FÉRIAS E DOCUMENTOS */}
             {releasedModules.includes('mod-1') && (
-              <div className="space-y-1 pt-2 border-t border-emerald-700/50">
-                <div className="px-3 text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider mb-1">
+              <div className="space-y-1 pt-2 border-t border-slate-800">
+                <div className="px-3 text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider mb-1">
                   🏖 Férias e Documentos
                 </div>
 
                 <button
                   onClick={() => { setActiveTab('ferias'); setIsSidebarOpen(false); }}
-                  className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'ferias' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                  className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'ferias' ? 'bg-slate-700 text-white shadow-md font-bold border border-slate-600/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                 >
-                  <Calendar className="h-4 w-4 shrink-0" />
+                  <Calendar className="h-4 w-4 shrink-0 text-slate-400" />
                   <span>{currentUser?.role === 'Funcionário' ? 'Minhas Férias' : 'Solicitações de Férias'}</span>
                 </button>
 
                 <button
                   onClick={() => { setActiveTab('documentos'); setIsSidebarOpen(false); }}
-                  className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'documentos' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                  className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'documentos' ? 'bg-slate-700 text-white shadow-md font-bold border border-slate-600/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                 >
-                  <FileText className="h-4 w-4 shrink-0" />
+                  <FileText className="h-4 w-4 shrink-0 text-slate-400" />
                   <span>{currentUser?.role === 'Funcionário' ? 'Meus Documentos' : 'Documentos do RH'}</span>
                 </button>
               </div>
@@ -1522,28 +1525,31 @@ export default function AdminDashboard({
 
             {/* 7. RELATÓRIOS & CONSULTORIA */}
             {(!currentUser || currentUser.role !== 'Funcionário') && (releasedModules.includes('mod-10') || releasedModules.includes('mod-13') || releasedModules.includes('mod-14')) && (
-              <div className="space-y-1 pt-2 border-t border-emerald-700/50">
-                <div className="px-3 text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider mb-1">
+              <div className="space-y-1 pt-2 border-t border-slate-800">
+                <div className="px-3 text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider mb-1">
                   📊 Relatórios e Inteligência
                 </div>
 
                 {releasedModules.includes('mod-10') && (
                   <button
                     onClick={() => { setActiveTab('relatorios'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'relatorios' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'relatorios' ? 'bg-slate-700 text-white shadow-md font-bold border border-slate-600/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                   >
-                    <TrendingUp className="h-4 w-4 shrink-0" />
+                    <TrendingUp className="h-4 w-4 shrink-0 text-slate-400" />
                     <span>Central de Relatórios</span>
                   </button>
                 )}
 
                 {releasedModules.includes('mod-13') && (
                   <button
-                    onClick={() => { setActiveTab('chat-ia'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'chat-ia' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                    onClick={() => { setIsAiAssistantOpen(prev => !prev); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all cursor-pointer ${isAiAssistantOpen ? 'bg-emerald-600 text-white font-bold shadow-md shadow-emerald-600/30 border border-emerald-500/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                   >
-                    <Bot className="h-4 w-4 shrink-0 text-emerald-300" />
+                    <Bot className={`h-4 w-4 shrink-0 ${isAiAssistantOpen ? 'text-white' : 'text-emerald-400'}`} />
                     <span className="flex-1">Assistente IA RH</span>
+                    <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${isAiAssistantOpen ? 'bg-white/20 text-white' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
+                      {isAiAssistantOpen ? 'Aberto' : 'Pop-up'}
+                    </span>
                   </button>
                 )}
 
@@ -1551,7 +1557,7 @@ export default function AdminDashboard({
                   <div className="space-y-1">
                     <button
                       onClick={() => { setActiveTab('consultor-rh'); setIsSidebarOpen(false); }}
-                      className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all cursor-pointer ${activeTab === 'consultor-rh' ? 'bg-amber-500 text-slate-950 font-bold shadow-lg shadow-amber-500/20' : 'text-amber-300 hover:bg-emerald-600/50'}`}
+                      className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all cursor-pointer ${activeTab === 'consultor-rh' ? 'bg-amber-500 text-slate-950 font-bold shadow-lg shadow-amber-500/20' : 'text-amber-300 hover:bg-slate-800/80'}`}
                     >
                       <Sparkles className="h-4 w-4 text-slate-950 shrink-0" />
                       <span className="flex-1 font-bold">Consultor de RH</span>
@@ -1588,7 +1594,7 @@ export default function AdminDashboard({
                               className={`w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-lg text-left text-[11px] font-semibold transition-all cursor-pointer ${
                                 isSubActive
                                   ? 'bg-amber-400 text-slate-950 font-bold shadow-xs'
-                                  : 'text-emerald-100 hover:bg-emerald-600/50 hover:text-white'
+                                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                               }`}
                             >
                               <IconComponent className={`h-3.5 w-3.5 shrink-0 ${isSubActive ? 'text-slate-950' : 'text-amber-300'}`} />
@@ -1605,15 +1611,15 @@ export default function AdminDashboard({
 
             {/* 8. CONFIGURAÇÕES */}
             {(!currentUser || (currentUser.role !== 'Funcionário' && currentUser.role !== 'RH')) && (
-              <div className="space-y-1 pt-2 border-t border-emerald-700/50">
-                <div className="px-3 text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider mb-1">
+              <div className="space-y-1 pt-2 border-t border-slate-800">
+                <div className="px-3 text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider mb-1">
                   ⚙️ Sistema
                 </div>
                 <button
                   onClick={() => { setActiveTab('configuracoes'); setIsSidebarOpen(false); }}
-                  className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'configuracoes' ? 'bg-emerald-500 text-white shadow-md font-bold' : 'text-emerald-100 hover:bg-emerald-600/50'}`}
+                  className={`w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-left transition-all ${activeTab === 'configuracoes' ? 'bg-slate-700 text-white shadow-md font-bold border border-slate-600/50' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'}`}
                 >
-                  <Settings className="h-4 w-4 shrink-0" />
+                  <Settings className="h-4 w-4 shrink-0 text-slate-400" />
                   <span>Configurações & Tabelas</span>
                 </button>
               </div>
@@ -1623,34 +1629,25 @@ export default function AdminDashboard({
         </div>
 
         {/* User profile details bottom */}
-        <div className="p-4 border-t border-emerald-600/80 bg-emerald-950/25">
+        <div className="p-4 border-t border-slate-800 bg-slate-900/60">
           <div className="flex items-center space-x-3 mb-3">
-            <div className="h-9 w-9 bg-emerald-500 text-white font-bold flex items-center justify-center rounded-full text-xs shrink-0 border border-emerald-400">
+            <div className="h-9 w-9 bg-slate-700 text-white font-bold flex items-center justify-center rounded-full text-xs shrink-0 border border-slate-600">
               {currentUser?.name ? currentUser.name.slice(0, 2).toUpperCase() : 'AD'}
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold truncate text-white leading-none">{currentUser?.name || 'Administrador'}</p>
-              <p className="text-[9px] text-emerald-300 truncate mt-1 uppercase font-mono font-bold tracking-wider">
+              <p className="text-[9px] text-slate-400 truncate mt-1 uppercase font-mono font-bold tracking-wider">
                 {currentUser?.role || 'Empresa Administradora'}
               </p>
             </div>
           </div>
 
-          {currentUser?.role !== 'Funcionário' && (
-            <button 
-              onClick={() => setIsLayoutRequestModalOpen(true)}
-              className="w-full mb-2 flex items-center justify-center space-x-2 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 text-[11px] font-extrabold py-2 rounded-xl transition-all cursor-pointer shadow-xs"
-              title="Solicitar alteração de layout ou menus ao Master"
-            >
-              <Palette className="h-3.5 w-3.5 shrink-0 text-amber-400" />
-              <span>Personalizar Layout</span>
-            </button>
-          )}
+
 
           <button 
             id="btn-voltar-ao-portal"
             onClick={onLogout || onBackToPortal}
-            className="w-full flex items-center justify-center space-x-2 bg-emerald-600/40 hover:bg-rose-600 border border-emerald-500/20 hover:border-rose-500 text-white text-xs font-semibold py-2 rounded-xl transition-all cursor-pointer"
+            className="w-full flex items-center justify-center space-x-2 bg-slate-800/80 hover:bg-rose-600 border border-slate-700 hover:border-rose-500 text-slate-200 hover:text-white text-xs font-semibold py-2 rounded-xl transition-all cursor-pointer"
           >
             <LogOut className="h-3.5 w-3.5 shrink-0" />
             <span>Sair do Painel</span>
@@ -1708,6 +1705,16 @@ export default function AdminDashboard({
 
           {/* Right Area Actions & Date badge */}
           <div className="flex items-center space-x-3 shrink-0 self-start sm:self-center">
+            <button
+              type="button"
+              onClick={() => setIsWorkspaceHubOpen(true)}
+              className="bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs px-3.5 py-2 rounded-xl shadow-xs border border-slate-200 flex items-center space-x-2 transition cursor-pointer"
+              title="Acessar Gmail, Google Meet e Google Chat"
+            >
+              <Mail className="h-4 w-4 text-emerald-600" />
+              <span>Google Workspace</span>
+            </button>
+
             {((currentUser?.role as string) === 'Master' || (currentUser?.role as string) === 'MASTER' || (currentUser?.role as string) === 'OWNER') && (
               <button
                 type="button"
@@ -4420,12 +4427,12 @@ export default function AdminDashboard({
       {/* 8. MASTER DESIGNER (CONSTRUTOR VISUAL GLOBAL DO MASTER) FLOATING TOGGLE & MODAL */}
       {((currentUser?.role as string) === 'Master' || (currentUser?.role as string) === 'MASTER' || (currentUser?.role as string) === 'OWNER') && (
         <>
-          {/* Floating Action Button */}
-          <div className="fixed bottom-6 right-6 z-40 flex items-center space-x-2">
+          {/* Floating Action Button for Master Visual Builder */}
+          <div className="fixed bottom-6 right-52 sm:right-60 z-40 flex items-center space-x-2">
             <button
               type="button"
               onClick={handleOpenPageEditor}
-              className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs px-4 py-3 rounded-2xl shadow-2xl shadow-amber-500/30 border border-amber-300 flex items-center space-x-2 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs px-3.5 py-2.5 rounded-full shadow-2xl shadow-amber-500/30 border border-amber-300 flex items-center space-x-2 transition-all hover:scale-105 active:scale-95 cursor-pointer"
             >
               <Sparkles className="h-4 w-4 animate-pulse text-slate-950" />
               <span>Editar esta página</span>
@@ -4446,6 +4453,67 @@ export default function AdminDashboard({
         </>
       )}
 
+      {/* 9. GOOGLE WORKSPACE HUB MODAL */}
+      <GoogleWorkspaceHub
+        isOpen={isWorkspaceHubOpen}
+        onClose={() => setIsWorkspaceHubOpen(false)}
+      />
+
+      {/* 10. FLOATING AI ASSISTANT RH WIDGET (CORNER WIDGET) */}
+      {!isAiAssistantOpen ? (
+        <button
+          type="button"
+          onClick={() => setIsAiAssistantOpen(true)}
+          className="fixed bottom-6 right-6 z-40 bg-slate-900 hover:bg-slate-800 text-white p-2.5 sm:p-3 sm:pr-4 rounded-full shadow-2xl shadow-slate-950/60 border border-slate-700/80 flex items-center space-x-2.5 transition-all hover:scale-105 active:scale-95 cursor-pointer group"
+          title="Abrir Assistente IA RH (CLT e Gestão)"
+        >
+          <div className="relative flex items-center justify-center">
+            <div className="w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center text-white font-bold shadow-md group-hover:bg-emerald-400 transition-colors">
+              <Bot className="h-5 w-5" />
+            </div>
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 border-2 border-slate-900 rounded-full animate-ping"></span>
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-slate-900 rounded-full"></span>
+          </div>
+          <div className="text-left hidden sm:block pr-1">
+            <div className="text-[11px] font-extrabold text-white leading-tight flex items-center space-x-1">
+              <span>Assistente IA RH</span>
+              <Sparkles className="h-3 w-3 text-amber-400" />
+            </div>
+            <div className="text-[9px] text-emerald-400 font-semibold">Tire dúvidas sem sair da página</div>
+          </div>
+        </button>
+      ) : (
+        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[95vw] sm:w-[430px] h-[580px] max-h-[85vh] bg-white rounded-2xl shadow-2xl border border-slate-200/80 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5">
+          {/* Widget Header */}
+          <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between shrink-0 border-b border-slate-800">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-bold shadow-sm">
+                <Bot className="h-4.5 w-4.5" />
+              </div>
+              <div>
+                <h3 className="font-display font-bold text-xs sm:text-sm text-white flex items-center space-x-1.5">
+                  <span>Assistente IA RH</span>
+                  <span className="bg-emerald-500/20 text-emerald-400 text-[9px] font-mono font-extrabold px-1.5 py-0.5 rounded-md border border-emerald-500/30">Online</span>
+                </h3>
+                <p className="text-[10px] text-slate-400">Suporte CLT e Gestão de Pessoas em tempo real</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsAiAssistantOpen(false)}
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition cursor-pointer"
+              title="Minimizar / Fechar Assistente IA"
+            >
+              <X className="h-4.5 w-4.5" />
+            </button>
+          </div>
+
+          {/* Widget Body */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <AIChatModule isFloating onClose={() => setIsAiAssistantOpen(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

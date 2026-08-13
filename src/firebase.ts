@@ -23,7 +23,31 @@ import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestor
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-export const firestoreDb = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const firestoreDb = getFirestore(app);
+
+// Helper to safely execute Firestore getDoc with timeout to avoid hangs or unhandled offline errors
+export async function safeFirestoreGetDoc(docRef: any, timeoutMs = 1200): Promise<any> {
+  try {
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Firestore timeout')), timeoutMs)
+    );
+    return await Promise.race([getDoc(docRef), timeoutPromise]);
+  } catch (err) {
+    return null;
+  }
+}
+
+// Helper to safely execute Firestore setDoc with timeout
+export async function safeFirestoreSetDoc(docRef: any, data: any, timeoutMs = 1200): Promise<void> {
+  try {
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Firestore timeout')), timeoutMs)
+    );
+    await Promise.race([setDoc(docRef, data), timeoutPromise]);
+  } catch (err) {
+    console.warn('Firestore setDoc notice (saved locally):', err);
+  }
+}
 
 export const DEFAULT_SITE_CONFIG: SiteConfig = {
   home: {
@@ -540,11 +564,11 @@ export async function getSiteConfig(): Promise<SiteConfig> {
 
     const docNames = ['home', 'empresa', 'planos', 'midia', 'contato'];
     const docSnaps = await Promise.allSettled(
-      docNames.map(dName => getDoc(doc(firestoreDb, 'site_config', dName)))
+      docNames.map(dName => safeFirestoreGetDoc(doc(firestoreDb, 'site_config', dName)))
     );
 
     docSnaps.forEach((res, idx) => {
-      if (res.status === 'fulfilled' && res.value.exists()) {
+      if (res.status === 'fulfilled' && res.value && typeof res.value.exists === 'function' && res.value.exists()) {
         const data = res.value.data();
         const key = docNames[idx] as keyof SiteConfig;
         if (key === 'planos' && data && data.items) {
@@ -568,70 +592,46 @@ export async function saveSiteHome(home: SiteHomeConfig): Promise<void> {
   const config = await getSiteConfig();
   config.home = home;
   localStorage.setItem(KEYS.SITE_CONFIG, JSON.stringify(config));
-  try {
-    await setDoc(doc(firestoreDb, 'site_config', 'home'), home);
-  } catch (err) {
-    console.warn('Error saving home config to Firestore:', err);
-  }
+  await safeFirestoreSetDoc(doc(firestoreDb, 'site_config', 'home'), home);
 }
 
 export async function saveSiteEmpresa(empresa: SiteEmpresaConfig): Promise<void> {
   const config = await getSiteConfig();
   config.empresa = empresa;
   localStorage.setItem(KEYS.SITE_CONFIG, JSON.stringify(config));
-  try {
-    await setDoc(doc(firestoreDb, 'site_config', 'empresa'), empresa);
-  } catch (err) {
-    console.warn('Error saving empresa config to Firestore:', err);
-  }
+  await safeFirestoreSetDoc(doc(firestoreDb, 'site_config', 'empresa'), empresa);
 }
 
 export async function saveSitePlanos(planos: SitePlanoConfig[]): Promise<void> {
   const config = await getSiteConfig();
   config.planos = planos;
   localStorage.setItem(KEYS.SITE_CONFIG, JSON.stringify(config));
-  try {
-    await setDoc(doc(firestoreDb, 'site_config', 'planos'), { items: planos });
-  } catch (err) {
-    console.warn('Error saving planos config to Firestore:', err);
-  }
+  await safeFirestoreSetDoc(doc(firestoreDb, 'site_config', 'planos'), { items: planos });
 }
 
 export async function saveSiteMidia(midia: SiteMidiaConfig): Promise<void> {
   const config = await getSiteConfig();
   config.midia = midia;
   localStorage.setItem(KEYS.SITE_CONFIG, JSON.stringify(config));
-  try {
-    await setDoc(doc(firestoreDb, 'site_config', 'midia'), midia);
-  } catch (err) {
-    console.warn('Error saving midia config to Firestore:', err);
-  }
+  await safeFirestoreSetDoc(doc(firestoreDb, 'site_config', 'midia'), midia);
 }
 
 export async function saveSiteContato(contato: SiteContatoConfig): Promise<void> {
   const config = await getSiteConfig();
   config.contato = contato;
   localStorage.setItem(KEYS.SITE_CONFIG, JSON.stringify(config));
-  try {
-    await setDoc(doc(firestoreDb, 'site_config', 'contato'), contato);
-  } catch (err) {
-    console.warn('Error saving contato config to Firestore:', err);
-  }
+  await safeFirestoreSetDoc(doc(firestoreDb, 'site_config', 'contato'), contato);
 }
 
 export async function saveAllSiteConfig(config: SiteConfig): Promise<void> {
   localStorage.setItem(KEYS.SITE_CONFIG, JSON.stringify(config));
-  try {
-    await Promise.all([
-      setDoc(doc(firestoreDb, 'site_config', 'home'), config.home),
-      setDoc(doc(firestoreDb, 'site_config', 'empresa'), config.empresa),
-      setDoc(doc(firestoreDb, 'site_config', 'planos'), { items: config.planos }),
-      setDoc(doc(firestoreDb, 'site_config', 'midia'), config.midia),
-      setDoc(doc(firestoreDb, 'site_config', 'contato'), config.contato)
-    ]);
-  } catch (err) {
-    console.warn('Error saving all site_config to Firestore:', err);
-  }
+  await Promise.all([
+    safeFirestoreSetDoc(doc(firestoreDb, 'site_config', 'home'), config.home),
+    safeFirestoreSetDoc(doc(firestoreDb, 'site_config', 'empresa'), config.empresa),
+    safeFirestoreSetDoc(doc(firestoreDb, 'site_config', 'planos'), { items: config.planos }),
+    safeFirestoreSetDoc(doc(firestoreDb, 'site_config', 'midia'), config.midia),
+    safeFirestoreSetDoc(doc(firestoreDb, 'site_config', 'contato'), config.contato)
+  ]);
 }
 
 export const firebaseService: FirebaseService = {

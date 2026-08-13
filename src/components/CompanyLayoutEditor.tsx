@@ -88,12 +88,12 @@ const AVAILABLE_ICONS = [
 
 // Color presets
 const COLOR_PRESETS = [
+  { name: 'Grafite Elegante', primary: '#475569', secondary: '#1e293b' },
+  { name: 'Cinza Platina Executivo', primary: '#64748b', secondary: '#0f172a' },
   { name: 'Esmeralda GestRH', primary: '#059669', secondary: '#064e3b' },
   { name: 'Azul Corporativo', primary: '#2563eb', secondary: '#1e3a8a' },
   { name: 'Roxo Imperial', primary: '#7c3aed', secondary: '#4c1d95' },
-  { name: 'Âmbar Executivo', primary: '#d97706', secondary: '#78350f' },
-  { name: 'Vermelho Indústria', primary: '#dc2626', secondary: '#7f1d1d' },
-  { name: 'Grafite Elegante', primary: '#334155', secondary: '#0f172a' }
+  { name: 'Âmbar Executivo', primary: '#d97706', secondary: '#78350f' }
 ];
 
 export default function CompanyLayoutEditor({
